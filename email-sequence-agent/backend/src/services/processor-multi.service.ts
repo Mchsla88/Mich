@@ -3,6 +3,7 @@ import * as sheetsService from './sheets.service.js';
 import * as gmailService from './gmail.service.js';
 import * as researchService from './research.service.js';
 import * as sequenceService from './sequence.service.js';
+import * as geminiService from './gemini.service.js';
 import * as spreadsheetStorage from './spreadsheet.storage.js';
 import config from '../config.js';
 
@@ -70,12 +71,25 @@ async function processResearchForSpreadsheet(spreadsheet: SpreadsheetConfig): Pr
           { status: 'research' }
         );
 
-        // Perform research
-        const researchResult: ResearchResult = await researchService.performResearch(
-          lead.firma,
-          lead.website_url,
-          lead.imie
-        );
+        // Perform research using configured AI provider
+        let researchResult: ResearchResult;
+
+        if (spreadsheet.aiProvider === 'gemini') {
+          const apiKey = spreadsheet.aiApiKey || process.env.GEMINI_API_KEY || config.anthropicApiKey;
+          console.log(`  🤖 Using Gemini AI for research`);
+          researchResult = await geminiService.performResearch(
+            lead.website_url,
+            apiKey
+          );
+        } else {
+          // Default to Anthropic
+          console.log(`  🤖 Using Anthropic Claude for research`);
+          researchResult = await researchService.performResearch(
+            lead.firma,
+            lead.website_url,
+            lead.imie
+          );
+        }
 
         // Save results
         await sheetsService.updateLeadFieldsIn(
@@ -165,14 +179,31 @@ async function processSequenceForSpreadsheet(spreadsheet: SpreadsheetConfig): Pr
 
         const researchResult: ResearchResult = JSON.parse(lead.research_notes!);
 
-        // Generate sequence with custom sender and signature
-        const sequence: EmailSequence = await sequenceService.generateSequence(
-          lead.firma,
-          lead.website_url,
-          lead.imie,
-          researchResult,
-          spreadsheet.signature
-        );
+        // Generate sequence with custom sender, signature, and AI provider
+        let sequence: EmailSequence;
+
+        if (spreadsheet.aiProvider === 'gemini') {
+          const apiKey = spreadsheet.aiApiKey || process.env.GEMINI_API_KEY || config.anthropicApiKey;
+          console.log(`  🤖 Using Gemini AI for sequence generation`);
+          sequence = await geminiService.generateSequence(
+            lead.firma,
+            lead.website_url,
+            lead.imie,
+            researchResult,
+            apiKey,
+            spreadsheet.signature
+          );
+        } else {
+          // Default to Anthropic
+          console.log(`  🤖 Using Anthropic Claude for sequence generation`);
+          sequence = await sequenceService.generateSequence(
+            lead.firma,
+            lead.website_url,
+            lead.imie,
+            researchResult,
+            spreadsheet.signature
+          );
+        }
 
         // Save sequence
         await sheetsService.updateLeadFieldsIn(

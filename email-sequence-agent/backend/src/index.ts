@@ -889,6 +889,34 @@ app.get('/', (req: Request, res: Response) => {
           <small style="color: #666;">Opcjonalne - kod HTML stopki. Jeśli puste, użyje domyślnej stopki.</small>
         </div>
 
+        <div class="form-group">
+          <label>Dostawca AI *</label>
+          <div style="display: flex; gap: 20px; margin-top: 8px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="radio" name="aiProvider" value="anthropic" checked onchange="toggleAiProviderFields()">
+              <span>Anthropic Claude</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="radio" name="aiProvider" value="gemini" onchange="toggleAiProviderFields()">
+              <span>Google Gemini</span>
+            </label>
+          </div>
+          <small style="color: #666;">Wybierz AI do generowania treści i researchu</small>
+        </div>
+
+        <div class="form-group">
+          <label for="newAiApiKey">AI API Key</label>
+          <input type="password" id="newAiApiKey" placeholder="sk-ant-... lub API key z Google AI Studio" />
+          <small style="color: #666;">Opcjonalne - dedykowany klucz API. Jeśli puste, użyje globalnego.</small>
+        </div>
+
+        <div class="form-group">
+          <label for="newCredentialsFile">Google Credentials JSON</label>
+          <input type="file" id="newCredentialsFile" accept=".json" onchange="handleCredentialsFileSelect(event)" />
+          <small style="color: #666;">Opcjonalne - dedykowany plik credentials dla tego konta Google.</small>
+          <div id="credentialsFileStatus" style="margin-top: 8px; font-size: 13px;"></div>
+        </div>
+
         <div>
           <button onclick="addSpreadsheet()">💾 Dodaj arkusz</button>
           <button onclick="hideAddSpreadsheetForm()" class="danger">Anuluj</button>
@@ -1104,6 +1132,62 @@ app.get('/', (req: Request, res: Response) => {
       document.getElementById('addSpreadsheetForm').style.display = 'block';
     }
 
+    // Global variable for credentials file
+    let selectedCredentialsFile = null;
+
+    function handleCredentialsFileSelect(event) {
+      const file = event.target.files[0];
+      const statusDiv = document.getElementById('credentialsFileStatus');
+
+      if (!file) {
+        selectedCredentialsFile = null;
+        statusDiv.innerHTML = '';
+        return;
+      }
+
+      if (!file.name.endsWith('.json')) {
+        statusDiv.innerHTML = '<span style="color: red;">❌ Plik musi być w formacie JSON</span>';
+        selectedCredentialsFile = null;
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const content = e.target.result;
+          const jsonContent = JSON.parse(content);
+
+          if (jsonContent.type !== 'service_account') {
+            statusDiv.innerHTML = '<span style="color: red;">❌ Nieprawidłowy plik - wymagany Service Account JSON</span>';
+            selectedCredentialsFile = null;
+            return;
+          }
+
+          selectedCredentialsFile = {
+            fileName: file.name,
+            content: btoa(content) // Convert to base64
+          };
+
+          statusDiv.innerHTML = '<span style="color: green;">✅ ' + file.name + '</span>';
+        } catch (error) {
+          statusDiv.innerHTML = '<span style="color: red;">❌ Błąd odczytu pliku JSON</span>';
+          selectedCredentialsFile = null;
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function toggleAiProviderFields() {
+      const selectedProvider = document.querySelector('input[name="aiProvider"]:checked').value;
+      const apiKeyInput = document.getElementById('newAiApiKey');
+
+      if (selectedProvider === 'gemini') {
+        apiKeyInput.placeholder = 'API key z Google AI Studio';
+      } else {
+        apiKeyInput.placeholder = 'sk-ant-... Anthropic API key';
+      }
+    }
+
     function hideAddSpreadsheetForm() {
       document.getElementById('addSpreadsheetForm').style.display = 'none';
       // Clear form
@@ -1112,6 +1196,12 @@ app.get('/', (req: Request, res: Response) => {
       document.getElementById('newSpreadsheetName').value = '';
       document.getElementById('newSenderEmail').value = '';
       document.getElementById('newSenderName').value = '';
+      document.getElementById('newSignature').value = '';
+      document.getElementById('newAiApiKey').value = '';
+      document.getElementById('newCredentialsFile').value = '';
+      document.getElementById('credentialsFileStatus').innerHTML = '';
+      selectedCredentialsFile = null;
+      document.querySelector('input[name="aiProvider"][value="anthropic"]').checked = true;
     }
 
     async function addSpreadsheet() {
@@ -1127,6 +1217,8 @@ app.get('/', (req: Request, res: Response) => {
       const senderEmail = document.getElementById('newSenderEmail').value.trim();
       const senderName = document.getElementById('newSenderName').value.trim();
       const signature = document.getElementById('newSignature').value.trim();
+      const aiProvider = document.querySelector('input[name="aiProvider"]:checked').value;
+      const aiApiKey = document.getElementById('newAiApiKey').value.trim();
 
       if (!spreadsheetId || !sheetName || !name || !senderEmail || !senderName) {
         errorDiv.textContent = 'Wszystkie pola są wymagane!';
@@ -1135,6 +1227,38 @@ app.get('/', (req: Request, res: Response) => {
       }
 
       try {
+        let credentialsFileName = null;
+
+        // Upload credentials file if selected
+        if (selectedCredentialsFile) {
+          try {
+            const uploadResponse = await fetch('/api/credentials/upload', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({
+                spreadsheetId: spreadsheetId,
+                fileName: selectedCredentialsFile.fileName,
+                fileContent: selectedCredentialsFile.content
+              })
+            });
+
+            const uploadData = await uploadResponse.json();
+
+            if (uploadData.success) {
+              credentialsFileName = uploadData.fileName;
+              console.log('✅ Credentials uploaded:', credentialsFileName);
+            } else {
+              errorDiv.textContent = 'Błąd uploadu credentials: ' + uploadData.error;
+              errorDiv.style.display = 'block';
+              return;
+            }
+          } catch (uploadError) {
+            errorDiv.textContent = 'Błąd uploadu credentials: ' + uploadError.message;
+            errorDiv.style.display = 'block';
+            return;
+          }
+        }
+
         const payload = {
           spreadsheetId,
           sheetName,
@@ -1142,12 +1266,19 @@ app.get('/', (req: Request, res: Response) => {
           senderEmail,
           senderName,
           replyToEmail: senderEmail,
+          aiProvider: aiProvider,
           active: true
         };
 
-        // Add signature only if provided
+        // Add optional fields
         if (signature) {
           payload.signature = signature;
+        }
+        if (aiApiKey) {
+          payload.aiApiKey = aiApiKey;
+        }
+        if (credentialsFileName) {
+          payload.credentialsFileName = credentialsFileName;
         }
 
         const response = await fetch('/api/spreadsheets', {
