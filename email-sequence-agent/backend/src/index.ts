@@ -22,34 +22,34 @@ app.use((req, res, next) => {
 
 // Initialize
 async function initialize() {
-  try {
-    console.log('\n🚀 Email Sequence Agent - Starting...\n');
-    console.log('Configuration:');
-    console.log(`  Spreadsheet ID: ${config.googleSpreadsheetId}`);
-    console.log(`  Sheet Name: ${config.googleSheetName}`);
-    console.log(`  Sender: ${config.senderName} <${config.senderEmail}>`);
-    console.log(`  Dry Run: ${config.dryRun}`);
-    if (config.dryRun && config.testEmail) {
-      console.log(`  Test Email: ${config.testEmail}`);
-    }
-    console.log(`  Limits: ${config.limitPerHour}/hour, ${config.limitPerDay}/day`);
-    console.log(`  Sending Hours: ${config.sendHourStart}:00-${config.sendHourEnd}:00`);
-    console.log(`  Weekends: ${config.sendWeekends ? 'Yes' : 'No'}`);
-    console.log(`  Timezone: ${config.timezone}`);
-    console.log(`  AI Model: ${config.aiModel}`);
-    console.log('');
-
-    // Initialize Google Auth
-    await sheetsService.initGoogleAuth();
-
-    // Start scheduler
-    schedulerService.startScheduler();
-
-    console.log('✅ Initialization complete!\n');
-  } catch (error) {
-    console.error('❌ Initialization failed:', error);
-    process.exit(1);
+  console.log('\n🚀 Email Sequence Agent - Starting...\n');
+  console.log('Configuration:');
+  console.log(`  Spreadsheet ID: ${config.googleSpreadsheetId}`);
+  console.log(`  Sheet Name: ${config.googleSheetName}`);
+  console.log(`  Sender: ${config.senderName} <${config.senderEmail}>`);
+  console.log(`  Dry Run: ${config.dryRun}`);
+  if (config.dryRun && config.testEmail) {
+    console.log(`  Test Email: ${config.testEmail}`);
   }
+  console.log(`  Limits: ${config.limitPerHour}/hour, ${config.limitPerDay}/day`);
+  console.log(`  Sending Hours: ${config.sendHourStart}:00-${config.sendHourEnd}:00`);
+  console.log(`  Weekends: ${config.sendWeekends ? 'Yes' : 'No'}`);
+  console.log(`  Timezone: ${config.timezone}`);
+  console.log(`  AI Model: ${config.aiModel}`);
+  console.log('');
+
+  // Initialize Google Auth (non-blocking)
+  try {
+    await sheetsService.initGoogleAuth();
+    console.log('✅ Google Auth initialized successfully\n');
+  } catch (error) {
+    console.warn('⚠️  Google Auth not configured yet - configure credentials through dashboard\n');
+  }
+
+  // Start scheduler
+  schedulerService.startScheduler();
+
+  console.log('✅ Server initialization complete!\n');
 }
 
 // ======================
