@@ -1,0 +1,20 @@
+{
+  "name": "email-sequence-agent",
+  "version": "1.0.0",
+  "description": "AI-powered email sequence automation with Google Sheets and Gmail",
+  "scripts": {
+    "dev": "cd backend && npm run dev",
+    "build": "cd backend && npm run build",
+    "start": "cd backend && npm start"
+  },
+  "keywords": [
+    "email",
+    "automation",
+    "ai",
+    "google-sheets",
+    "gmail",
+    "claude"
+  ],
+  "author": "Michał Sławiński",
+  "license": "MIT"
+}
