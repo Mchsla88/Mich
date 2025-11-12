@@ -2,7 +2,18 @@ import { google } from 'googleapis';
 import { GmailSendResult, RateLimiterState } from '../types.js';
 import config from '../config.js';
 
-const gmail = google.gmail('v3');
+// Lazy initialization of Gmail client
+function getGmailClient() {
+  const auth = new google.auth.GoogleAuth({
+    keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+    scopes: [
+      'https://www.googleapis.com/auth/gmail.send',
+      'https://www.googleapis.com/auth/gmail.readonly',
+    ],
+  });
+
+  return google.gmail({ version: 'v3', auth });
+}
 
 // Rate limiter state
 let rateLimiter: RateLimiterState = {
@@ -176,6 +187,7 @@ export async function sendEmail(
     const encodedEmail = encodeEmail(emailMessage);
 
     // Send via Gmail API
+    const gmail = getGmailClient();
     const response = await gmail.users.messages.send({
       userId: 'me',
       requestBody: {
@@ -210,6 +222,7 @@ export async function checkForReplies(
 ): Promise<boolean> {
   try {
     // Get thread
+    const gmail = getGmailClient();
     const thread = await gmail.users.threads.get({
       userId: 'me',
       id: threadId,
@@ -237,6 +250,7 @@ export async function searchThreadsByEmail(
   email: string
 ): Promise<string[]> {
   try {
+    const gmail = getGmailClient();
     const response = await gmail.users.threads.list({
       userId: 'me',
       q: `to:${email}`,
