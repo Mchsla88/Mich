@@ -34,3 +34,7 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
+
+# Runtime data
+data/
+runtime-config.json

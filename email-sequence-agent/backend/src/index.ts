@@ -1,9 +1,10 @@
 import express, { Request, Response } from 'express';
-import config from './config.js';
+import config, { updateConfig, getConfig } from './config.js';
 import * as sheetsService from './services/sheets.service.js';
 import * as gmailService from './services/gmail.service.js';
 import * as schedulerService from './services/scheduler.service.js';
 import * as processorService from './services/processor.service.js';
+import * as configStorage from './services/config.storage.js';
 
 const app = express();
 
@@ -250,6 +251,93 @@ app.post('/api/process/check-replies', async (req: Request, res: Response) => {
   }
 });
 
+// ======================
+// CONFIGURATION ENDPOINTS
+// ======================
+
+// Get current configuration
+app.get('/api/config', (req: Request, res: Response) => {
+  const currentConfig = getConfig();
+
+  // Don't expose sensitive data in full
+  res.json({
+    success: true,
+    config: {
+      googleSpreadsheetId: currentConfig.googleSpreadsheetId,
+      googleSheetName: currentConfig.googleSheetName,
+      senderEmail: currentConfig.senderEmail,
+      senderName: currentConfig.senderName,
+      testEmail: currentConfig.testEmail,
+      dryRun: currentConfig.dryRun,
+      limitPerHour: currentConfig.limitPerHour,
+      limitPerDay: currentConfig.limitPerDay,
+      sendHourStart: currentConfig.sendHourStart,
+      sendHourEnd: currentConfig.sendHourEnd,
+      sendWeekends: currentConfig.sendWeekends,
+      aiModel: currentConfig.aiModel,
+      anthropicApiKeySet: !!currentConfig.anthropicApiKey,
+      timezone: currentConfig.timezone,
+      cronIntervalMinutes: currentConfig.cronIntervalMinutes,
+    },
+  });
+});
+
+// Update configuration
+app.post('/api/config', async (req: Request, res: Response) => {
+  try {
+    const updates = req.body;
+
+    // Update runtime config
+    updateConfig(updates);
+
+    // Save to storage
+    await configStorage.updateConfig(updates);
+
+    res.json({
+      success: true,
+      message: 'Configuration updated',
+      config: getConfig(),
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Update API key specifically
+app.post('/api/config/api-key', async (req: Request, res: Response) => {
+  try {
+    const { anthropicApiKey } = req.body;
+
+    if (!anthropicApiKey || typeof anthropicApiKey !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid API key',
+      });
+    }
+
+    // Update runtime config
+    updateConfig({ anthropicApiKey });
+
+    // Save to storage
+    await configStorage.setConfigValue('anthropicApiKey', anthropicApiKey);
+
+    console.log('✅ Anthropic API key updated');
+
+    res.json({
+      success: true,
+      message: 'API key updated successfully',
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
 // Simple HTML dashboard
 app.get('/', (req: Request, res: Response) => {
   const html = `
@@ -385,6 +473,64 @@ app.get('/', (req: Request, res: Response) => {
       border-left: 4px solid #2196f3;
       color: #0d47a1;
     }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 600;
+      color: #444;
+      font-size: 14px;
+    }
+    input[type="text"],
+    input[type="password"],
+    input[type="email"] {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      font-family: monospace;
+    }
+    input:focus {
+      outline: none;
+      border-color: #0066cc;
+    }
+    .success-message {
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      color: #155724;
+      padding: 12px;
+      border-radius: 4px;
+      margin-top: 10px;
+      display: none;
+    }
+    .error-message {
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+      padding: 12px;
+      border-radius: 4px;
+      margin-top: 10px;
+      display: none;
+    }
+    .config-status {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+    .config-status.ok {
+      background: #d4edda;
+      color: #155724;
+    }
+    .config-status.missing {
+      background: #fff3cd;
+      color: #856404;
+    }
   </style>
 </head>
 <body>
@@ -403,6 +549,52 @@ app.get('/', (req: Request, res: Response) => {
       Emaile są wysyłane do rzeczywistych adresatów!
     </div>
     `}
+
+    ${!config.anthropicApiKey ? `
+    <div class="alert warning">
+      <strong>⚠️ BRAK API KEY</strong><br>
+      Anthropic API key nie jest ustawiony! Ustaw go poniżej, aby system mógł działać.
+    </div>
+    ` : ''}
+
+    <div class="section">
+      <h2>🔑 API Configuration</h2>
+      <p style="margin-bottom: 15px;">
+        Anthropic API Key:
+        <span class="config-status ${config.anthropicApiKey ? 'ok' : 'missing'}">
+          ${config.anthropicApiKey ? '✓ Ustawiony' : '✗ Brak'}
+        </span>
+      </p>
+
+      <div class="form-group">
+        <label for="apiKey">Anthropic API Key (Claude AI)</label>
+        <input
+          type="password"
+          id="apiKey"
+          placeholder="sk-ant-api03-..."
+          value="${config.anthropicApiKey ? '••••••••••••••••' : ''}"
+        />
+        <small style="color: #666;">Klucz API do Claude. Pobierz z: <a href="https://console.anthropic.com/" target="_blank">console.anthropic.com</a></small>
+      </div>
+
+      <div class="form-group">
+        <label for="testEmail">Test Email (dla DRY RUN)</label>
+        <input
+          type="email"
+          id="testEmail"
+          placeholder="twoj-email@example.com"
+          value="${config.testEmail || ''}"
+        />
+      </div>
+
+      <div>
+        <button onclick="saveApiKey()">💾 Zapisz API Key</button>
+        <button onclick="saveTestEmail()">💾 Zapisz Test Email</button>
+      </div>
+
+      <div id="configSuccess" class="success-message"></div>
+      <div id="configError" class="error-message"></div>
+    </div>
 
     <div class="section">
       <h2>⚙️ Konfiguracja</h2>
@@ -475,6 +667,88 @@ app.get('/', (req: Request, res: Response) => {
         alert(data.message || 'Gotowe!');
       } catch (error) {
         alert('Błąd: ' + error.message);
+      }
+    }
+
+    async function saveApiKey() {
+      const apiKey = document.getElementById('apiKey').value;
+      const successDiv = document.getElementById('configSuccess');
+      const errorDiv = document.getElementById('configError');
+
+      // Hide previous messages
+      successDiv.style.display = 'none';
+      errorDiv.style.display = 'none';
+
+      if (!apiKey || apiKey === '••••••••••••••••') {
+        errorDiv.textContent = 'Proszę wpisać API key';
+        errorDiv.style.display = 'block';
+        return;
+      }
+
+      if (!apiKey.startsWith('sk-ant-')) {
+        errorDiv.textContent = 'Nieprawidłowy format API key (powinien zaczynać się od sk-ant-)';
+        errorDiv.style.display = 'block';
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/config/api-key', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ anthropicApiKey: apiKey })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          successDiv.textContent = '✓ API key zapisany! Odśwież stronę aby zobaczyć zmiany.';
+          successDiv.style.display = 'block';
+          setTimeout(() => window.location.reload(), 2000);
+        } else {
+          errorDiv.textContent = 'Błąd: ' + data.error;
+          errorDiv.style.display = 'block';
+        }
+      } catch (error) {
+        errorDiv.textContent = 'Błąd połączenia: ' + error.message;
+        errorDiv.style.display = 'block';
+      }
+    }
+
+    async function saveTestEmail() {
+      const testEmail = document.getElementById('testEmail').value;
+      const successDiv = document.getElementById('configSuccess');
+      const errorDiv = document.getElementById('configError');
+
+      // Hide previous messages
+      successDiv.style.display = 'none';
+      errorDiv.style.display = 'none';
+
+      if (!testEmail) {
+        errorDiv.textContent = 'Proszę wpisać adres email';
+        errorDiv.style.display = 'block';
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/config', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ testEmail: testEmail })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          successDiv.textContent = '✓ Test email zapisany! Odśwież stronę aby zobaczyć zmiany.';
+          successDiv.style.display = 'block';
+          setTimeout(() => window.location.reload(), 2000);
+        } else {
+          errorDiv.textContent = 'Błąd: ' + data.error;
+          errorDiv.style.display = 'block';
+        }
+      } catch (error) {
+        errorDiv.textContent = 'Błąd połączenia: ' + error.message;
+        errorDiv.style.display = 'block';
       }
     }
   </script>

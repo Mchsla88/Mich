@@ -3,7 +3,8 @@ import { Config } from './types.js';
 
 dotenv.config();
 
-export const config: Config = {
+// Create mutable config object
+export let config: Config = {
   port: parseInt(process.env.PORT || '3002', 10),
   googleSpreadsheetId: process.env.GOOGLE_SPREADSHEET_ID || '13CYoUh8BpVi4dOjeXrU1NFIt9PTVpKKhrdQGpggYzZ4',
   googleSheetName: process.env.GOOGLE_SHEET_NAME || 'Leads',
@@ -27,9 +28,21 @@ export const config: Config = {
   useEmailThreads: process.env.USE_EMAIL_THREADS !== 'false',
 };
 
+// Function to update runtime config
+export function updateConfig(updates: Partial<Config>): void {
+  config = { ...config, ...updates };
+  console.log('✅ Config updated at runtime');
+}
+
+// Function to get current config
+export function getConfig(): Config {
+  return { ...config };
+}
+
 // Validation
 if (!config.anthropicApiKey) {
   console.warn('⚠️  ANTHROPIC_API_KEY not set! AI features will not work.');
+  console.warn('💡  You can set it via the dashboard at http://localhost:3002');
 }
 
 if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
