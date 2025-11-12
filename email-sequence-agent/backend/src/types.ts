@@ -142,6 +142,9 @@ export interface SpreadsheetConfig {
   senderName: string; // Sender display name
   replyToEmail?: string; // Reply-to email (optional)
   signature?: string; // Email signature HTML (optional, uses default if not provided)
+  credentialsFileName?: string; // Google credentials JSON filename (stored in credentials/)
+  aiProvider: 'anthropic' | 'gemini'; // AI provider to use
+  aiApiKey?: string; // AI API key (optional, uses global config if not provided)
   name: string; // Friendly name (e.g., "Kampania Web Design")
   active: boolean; // Is this spreadsheet active?
   createdAt: string;

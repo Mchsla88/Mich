@@ -516,6 +516,76 @@ app.delete('/api/spreadsheets/:id', async (req: Request, res: Response) => {
   }
 });
 
+// Upload Google credentials file
+app.post('/api/credentials/upload', async (req: Request, res: Response) => {
+  try {
+    const { spreadsheetId, fileName, fileContent } = req.body;
+
+    if (!spreadsheetId || !fileName || !fileContent) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: spreadsheetId, fileName, fileContent',
+      });
+    }
+
+    // Validate fileName
+    if (!fileName.endsWith('.json')) {
+      return res.status(400).json({
+        success: false,
+        error: 'File must be a .json file',
+      });
+    }
+
+    // Decode base64 content
+    const fileBuffer = Buffer.from(fileContent, 'base64');
+
+    // Validate JSON structure
+    try {
+      const jsonContent = JSON.parse(fileBuffer.toString('utf-8'));
+      if (!jsonContent.type || jsonContent.type !== 'service_account') {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid Google Service Account JSON file',
+        });
+      }
+    } catch (parseError) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid JSON file format',
+      });
+    }
+
+    // Save file to credentials folder with spreadsheet-specific name
+    const fs = await import('fs');
+    const path = await import('path');
+    const credentialsDir = path.join(process.cwd(), 'credentials');
+
+    // Create credentials directory if it doesn't exist
+    if (!fs.existsSync(credentialsDir)) {
+      fs.mkdirSync(credentialsDir, { recursive: true });
+    }
+
+    // Generate filename: credentials-{spreadsheetId}.json
+    const safeFileName = `credentials-${spreadsheetId}.json`;
+    const filePath = path.join(credentialsDir, safeFileName);
+
+    // Write file
+    fs.writeFileSync(filePath, fileBuffer);
+
+    res.json({
+      success: true,
+      fileName: safeFileName,
+      message: 'Credentials file uploaded successfully',
+    });
+  } catch (error: any) {
+    console.error('Error uploading credentials:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
 // Simple HTML dashboard
 app.get('/', (req: Request, res: Response) => {
   const html = `
