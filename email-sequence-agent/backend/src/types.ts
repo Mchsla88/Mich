@@ -141,6 +141,7 @@ export interface SpreadsheetConfig {
   senderEmail: string; // Email to send from
   senderName: string; // Sender display name
   replyToEmail?: string; // Reply-to email (optional)
+  signature?: string; // Email signature HTML (optional, uses default if not provided)
   name: string; // Friendly name (e.g., "Kampania Web Design")
   active: boolean; // Is this spreadsheet active?
   createdAt: string;

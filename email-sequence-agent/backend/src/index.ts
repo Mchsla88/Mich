@@ -813,6 +813,12 @@ app.get('/', (req: Request, res: Response) => {
           <input type="text" id="newSenderName" placeholder="Imię Nazwisko" />
         </div>
 
+        <div class="form-group">
+          <label for="newSignature">Stopka email (HTML)</label>
+          <textarea id="newSignature" rows="8" placeholder="<div>&#10;  <p><strong>Imię Nazwisko</strong></p>&#10;  <p>Email: email@example.com</p>&#10;</div>" style="font-family: monospace; font-size: 12px;"></textarea>
+          <small style="color: #666;">Opcjonalne - kod HTML stopki. Jeśli puste, użyje domyślnej stopki.</small>
+        </div>
+
         <div>
           <button onclick="addSpreadsheet()">💾 Dodaj arkusz</button>
           <button onclick="hideAddSpreadsheetForm()" class="danger">Anuluj</button>
@@ -1050,6 +1056,7 @@ app.get('/', (req: Request, res: Response) => {
       const name = document.getElementById('newSpreadsheetName').value.trim();
       const senderEmail = document.getElementById('newSenderEmail').value.trim();
       const senderName = document.getElementById('newSenderName').value.trim();
+      const signature = document.getElementById('newSignature').value.trim();
 
       if (!spreadsheetId || !sheetName || !name || !senderEmail || !senderName) {
         errorDiv.textContent = 'Wszystkie pola są wymagane!';
@@ -1058,18 +1065,25 @@ app.get('/', (req: Request, res: Response) => {
       }
 
       try {
+        const payload = {
+          spreadsheetId,
+          sheetName,
+          name,
+          senderEmail,
+          senderName,
+          replyToEmail: senderEmail,
+          active: true
+        };
+
+        // Add signature only if provided
+        if (signature) {
+          payload.signature = signature;
+        }
+
         const response = await fetch('/api/spreadsheets', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            spreadsheetId,
-            sheetName,
-            name,
-            senderEmail,
-            senderName,
-            replyToEmail: senderEmail,
-            active: true
-          })
+          body: JSON.stringify(payload)
         });
 
         const data = await response.json();

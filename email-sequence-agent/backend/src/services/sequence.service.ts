@@ -6,8 +6,8 @@ const anthropic = new Anthropic({
   apiKey: config.anthropicApiKey,
 });
 
-// Email signature (HTML)
-const EMAIL_SIGNATURE = `
+// Default email signature (HTML) - used when no custom signature is provided
+const DEFAULT_EMAIL_SIGNATURE = `
 <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0; font-family: Arial, sans-serif; font-size: 14px; color: #333;">
   <p style="margin: 0 0 10px 0;"><strong>Michał Sławiński</strong></p>
   <p style="margin: 0 0 5px 0;">Tworzenie Stron Internetowych</p>
@@ -23,8 +23,10 @@ export async function generateSequence(
   firma: string,
   websiteUrl: string,
   imie: string,
-  researchResult: ResearchResult
+  researchResult: ResearchResult,
+  customSignature?: string
 ): Promise<EmailSequence> {
+  const EMAIL_SIGNATURE = customSignature || DEFAULT_EMAIL_SIGNATURE;
   try {
     console.log(`📧 Generating email sequence for ${firma}...`);
 

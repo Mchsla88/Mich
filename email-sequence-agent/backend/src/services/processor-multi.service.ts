@@ -165,12 +165,13 @@ async function processSequenceForSpreadsheet(spreadsheet: SpreadsheetConfig): Pr
 
         const researchResult: ResearchResult = JSON.parse(lead.research_notes!);
 
-        // Generate sequence with custom sender
+        // Generate sequence with custom sender and signature
         const sequence: EmailSequence = await sequenceService.generateSequence(
           lead.firma,
           lead.website_url,
           lead.imie,
-          researchResult
+          researchResult,
+          spreadsheet.signature
         );
 
         // Save sequence
