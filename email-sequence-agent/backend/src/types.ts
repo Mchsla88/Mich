@@ -132,3 +132,17 @@ export interface SystemState {
     lead?: string;
   }>;
 }
+
+// Spreadsheet configuration (multi-spreadsheet support)
+export interface SpreadsheetConfig {
+  id: string; // Unique ID for this config
+  spreadsheetId: string; // Google Spreadsheet ID
+  sheetName: string; // Sheet name (e.g., "Leads")
+  senderEmail: string; // Email to send from
+  senderName: string; // Sender display name
+  replyToEmail?: string; // Reply-to email (optional)
+  name: string; // Friendly name (e.g., "Kampania Web Design")
+  active: boolean; // Is this spreadsheet active?
+  createdAt: string;
+  updatedAt: string;
+}

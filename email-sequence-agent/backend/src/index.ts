@@ -3,8 +3,9 @@ import config, { updateConfig, getConfig } from './config.js';
 import * as sheetsService from './services/sheets.service.js';
 import * as gmailService from './services/gmail.service.js';
 import * as schedulerService from './services/scheduler.service.js';
-import * as processorService from './services/processor.service.js';
+import * as processorService from './services/processor-multi.service.js';
 import * as configStorage from './services/config.storage.js';
+import * as spreadsheetStorage from './services/spreadsheet.storage.js';
 
 const app = express();
 
@@ -186,7 +187,7 @@ app.post('/api/scheduler/run-now', async (req: Request, res: Response) => {
 // Process research only
 app.post('/api/process/research', async (req: Request, res: Response) => {
   try {
-    const count = await processorService.processResearch();
+    const count = await processorService.processAllResearch();
     res.json({
       success: true,
       message: `Processed ${count} research tasks`,
@@ -203,7 +204,7 @@ app.post('/api/process/research', async (req: Request, res: Response) => {
 // Process sequence generation only
 app.post('/api/process/sequences', async (req: Request, res: Response) => {
   try {
-    const count = await processorService.processSequenceGeneration();
+    const count = await processorService.processAllSequenceGeneration();
     res.json({
       success: true,
       message: `Generated ${count} sequences`,
@@ -220,7 +221,7 @@ app.post('/api/process/sequences', async (req: Request, res: Response) => {
 // Process sending only
 app.post('/api/process/send', async (req: Request, res: Response) => {
   try {
-    const count = await processorService.processSending();
+    const count = await processorService.processAllSending();
     res.json({
       success: true,
       message: `Sent ${count} emails`,
@@ -237,7 +238,7 @@ app.post('/api/process/send', async (req: Request, res: Response) => {
 // Check replies only
 app.post('/api/process/check-replies', async (req: Request, res: Response) => {
   try {
-    const count = await processorService.checkReplies();
+    const count = await processorService.checkAllReplies();
     res.json({
       success: true,
       message: `Found ${count} replies`,
@@ -329,6 +330,183 @@ app.post('/api/config/api-key', async (req: Request, res: Response) => {
     res.json({
       success: true,
       message: 'API key updated successfully',
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// ======================
+// SPREADSHEET MANAGEMENT ENDPOINTS
+// ======================
+
+// Get all spreadsheets
+app.get('/api/spreadsheets', async (req: Request, res: Response) => {
+  try {
+    const spreadsheets = await spreadsheetStorage.loadSpreadsheets();
+    res.json({
+      success: true,
+      count: spreadsheets.length,
+      spreadsheets,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Get active spreadsheets only
+app.get('/api/spreadsheets/active', async (req: Request, res: Response) => {
+  try {
+    const spreadsheets = await spreadsheetStorage.getActiveSpreadsheets();
+    res.json({
+      success: true,
+      count: spreadsheets.length,
+      spreadsheets,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Get specific spreadsheet
+app.get('/api/spreadsheets/:id', async (req: Request, res: Response) => {
+  try {
+    const spreadsheet = await spreadsheetStorage.getSpreadsheetById(req.params.id);
+
+    if (!spreadsheet) {
+      return res.status(404).json({
+        success: false,
+        error: 'Spreadsheet not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      spreadsheet,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Add new spreadsheet
+app.post('/api/spreadsheets', async (req: Request, res: Response) => {
+  try {
+    const { spreadsheetId, sheetName, senderEmail, senderName, replyToEmail, name, active } = req.body;
+
+    // Validation
+    if (!spreadsheetId || !sheetName || !senderEmail || !senderName || !name) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: spreadsheetId, sheetName, senderEmail, senderName, name',
+      });
+    }
+
+    const newSpreadsheet = await spreadsheetStorage.addSpreadsheet({
+      spreadsheetId,
+      sheetName,
+      senderEmail,
+      senderName,
+      replyToEmail: replyToEmail || senderEmail,
+      name,
+      active: active !== undefined ? active : true,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Spreadsheet added successfully',
+      spreadsheet: newSpreadsheet,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Update spreadsheet
+app.put('/api/spreadsheets/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    const updatedSpreadsheet = await spreadsheetStorage.updateSpreadsheet(id, updates);
+
+    if (!updatedSpreadsheet) {
+      return res.status(404).json({
+        success: false,
+        error: 'Spreadsheet not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Spreadsheet updated successfully',
+      spreadsheet: updatedSpreadsheet,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Toggle spreadsheet active status
+app.post('/api/spreadsheets/:id/toggle', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const spreadsheet = await spreadsheetStorage.toggleSpreadsheetActive(id);
+
+    if (!spreadsheet) {
+      return res.status(404).json({
+        success: false,
+        error: 'Spreadsheet not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Spreadsheet ${spreadsheet.active ? 'activated' : 'deactivated'}`,
+      spreadsheet,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// Delete spreadsheet
+app.delete('/api/spreadsheets/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const deleted = await spreadsheetStorage.deleteSpreadsheet(id);
+
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        error: 'Spreadsheet not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Spreadsheet deleted successfully',
     });
   } catch (error: any) {
     res.status(500).json({
@@ -597,6 +775,55 @@ app.get('/', (req: Request, res: Response) => {
     </div>
 
     <div class="section">
+      <h2>📚 Zarządzanie Arkuszami</h2>
+      <p style="margin-bottom: 15px;">Dodaj wiele arkuszy Google Sheets - każdy z osobnym emailem nadawcy dla różnych kampanii.</p>
+
+      <div id="spreadsheetsList" style="margin-bottom: 20px;">
+        <p style="color: #666;">Ładowanie...</p>
+      </div>
+
+      <button onclick="showAddSpreadsheetForm()">➕ Dodaj nowy arkusz</button>
+
+      <div id="addSpreadsheetForm" style="display: none; margin-top: 20px; padding: 20px; background: white; border-radius: 6px; border: 1px solid #ddd;">
+        <h3 style="margin-bottom: 15px; font-size: 16px;">Nowy arkusz</h3>
+
+        <div class="form-group">
+          <label for="newSpreadsheetId">Google Spreadsheet ID *</label>
+          <input type="text" id="newSpreadsheetId" placeholder="13CYoUh8BpVi4dOjeXrU1NFIt9PTVpKKhrdQGpggYzZ4" />
+          <small style="color: #666;">Skopiuj z URL arkusza: ...d/<strong>ID</strong>/edit</small>
+        </div>
+
+        <div class="form-group">
+          <label for="newSheetName">Nazwa zakładki *</label>
+          <input type="text" id="newSheetName" placeholder="Leads" value="Leads" />
+        </div>
+
+        <div class="form-group">
+          <label for="newSpreadsheetName">Nazwa kampanii *</label>
+          <input type="text" id="newSpreadsheetName" placeholder="np. Kampania Web Design" />
+        </div>
+
+        <div class="form-group">
+          <label for="newSenderEmail">Email nadawcy *</label>
+          <input type="email" id="newSenderEmail" placeholder="email@example.com" />
+        </div>
+
+        <div class="form-group">
+          <label for="newSenderName">Nazwa nadawcy *</label>
+          <input type="text" id="newSenderName" placeholder="Imię Nazwisko" />
+        </div>
+
+        <div>
+          <button onclick="addSpreadsheet()">💾 Dodaj arkusz</button>
+          <button onclick="hideAddSpreadsheetForm()" class="danger">Anuluj</button>
+        </div>
+
+        <div id="spreadsheetSuccess" class="success-message"></div>
+        <div id="spreadsheetError" class="error-message"></div>
+      </div>
+    </div>
+
+    <div class="section">
       <h2>⚙️ Konfiguracja</h2>
       <div class="info-grid">
         <div class="info-card">
@@ -751,6 +978,157 @@ app.get('/', (req: Request, res: Response) => {
         errorDiv.style.display = 'block';
       }
     }
+
+    // Spreadsheet management functions
+    async function loadSpreadsheets() {
+      try {
+        const response = await fetch('/api/spreadsheets');
+        const data = await response.json();
+
+        if (data.success) {
+          const listDiv = document.getElementById('spreadsheetsList');
+
+          if (data.spreadsheets.length === 0) {
+            listDiv.innerHTML = '<p style="color: #666;">Brak arkuszy. Dodaj pierwszy!</p>';
+            return;
+          }
+
+          listDiv.innerHTML = data.spreadsheets.map(s => \`
+            <div style="padding: 15px; background: white; border-radius: 6px; margin-bottom: 10px; border: 1px solid #ddd;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <strong style="font-size: 16px;">\${s.name}</strong>
+                  <span class="badge \${s.active ? 'active' : 'inactive'}" style="margin-left: 10px;">
+                    \${s.active ? '✓ Aktywny' : '✗ Nieaktywny'}
+                  </span>
+                  <div style="margin-top: 8px; font-size: 14px; color: #666;">
+                    📧 <strong>\${s.senderName}</strong> &lt;\${s.senderEmail}&gt;<br>
+                    📊 Sheet: <code>\${s.sheetName}</code><br>
+                    🆔 ID: <code style="font-size: 11px;">\${s.spreadsheetId}</code>
+                  </div>
+                </div>
+                <div>
+                  <button onclick="toggleSpreadsheet('\${s.id}')" style="padding: 8px 16px; margin: 2px;">
+                    \${s.active ? '⏸️ Dezaktywuj' : '▶️ Aktywuj'}
+                  </button>
+                  <button onclick="deleteSpreadsheet('\${s.id}')" class="danger" style="padding: 8px 16px; margin: 2px;">
+                    🗑️ Usuń
+                  </button>
+                </div>
+              </div>
+            </div>
+          \`).join('');
+        }
+      } catch (error) {
+        console.error('Error loading spreadsheets:', error);
+      }
+    }
+
+    function showAddSpreadsheetForm() {
+      document.getElementById('addSpreadsheetForm').style.display = 'block';
+    }
+
+    function hideAddSpreadsheetForm() {
+      document.getElementById('addSpreadsheetForm').style.display = 'none';
+      // Clear form
+      document.getElementById('newSpreadsheetId').value = '';
+      document.getElementById('newSheetName').value = 'Leads';
+      document.getElementById('newSpreadsheetName').value = '';
+      document.getElementById('newSenderEmail').value = '';
+      document.getElementById('newSenderName').value = '';
+    }
+
+    async function addSpreadsheet() {
+      const successDiv = document.getElementById('spreadsheetSuccess');
+      const errorDiv = document.getElementById('spreadsheetError');
+
+      successDiv.style.display = 'none';
+      errorDiv.style.display = 'none';
+
+      const spreadsheetId = document.getElementById('newSpreadsheetId').value.trim();
+      const sheetName = document.getElementById('newSheetName').value.trim();
+      const name = document.getElementById('newSpreadsheetName').value.trim();
+      const senderEmail = document.getElementById('newSenderEmail').value.trim();
+      const senderName = document.getElementById('newSenderName').value.trim();
+
+      if (!spreadsheetId || !sheetName || !name || !senderEmail || !senderName) {
+        errorDiv.textContent = 'Wszystkie pola są wymagane!';
+        errorDiv.style.display = 'block';
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/spreadsheets', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            spreadsheetId,
+            sheetName,
+            name,
+            senderEmail,
+            senderName,
+            replyToEmail: senderEmail,
+            active: true
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          successDiv.textContent = '✓ Arkusz dodany! Odświeżam...';
+          successDiv.style.display = 'block';
+          setTimeout(() => {
+            hideAddSpreadsheetForm();
+            loadSpreadsheets();
+          }, 1000);
+        } else {
+          errorDiv.textContent = 'Błąd: ' + data.error;
+          errorDiv.style.display = 'block';
+        }
+      } catch (error) {
+        errorDiv.textContent = 'Błąd połączenia: ' + error.message;
+        errorDiv.style.display = 'block';
+      }
+    }
+
+    async function toggleSpreadsheet(id) {
+      try {
+        const response = await fetch(\`/api/spreadsheets/\${id}/toggle\`, {method: 'POST'});
+        const data = await response.json();
+
+        if (data.success) {
+          alert(data.message);
+          loadSpreadsheets();
+        } else {
+          alert('Błąd: ' + data.error);
+        }
+      } catch (error) {
+        alert('Błąd połączenia: ' + error.message);
+      }
+    }
+
+    async function deleteSpreadsheet(id) {
+      if (!confirm('Czy na pewno chcesz usunąć ten arkusz?')) {
+        return;
+      }
+
+      try {
+        const response = await fetch(\`/api/spreadsheets/\${id}\`, {method: 'DELETE'});
+        const data = await response.json();
+
+        if (data.success) {
+          alert('Arkusz usunięty');
+          loadSpreadsheets();
+        } else {
+          alert('Błąd: ' + data.error);
+        }
+      } catch (error) {
+        alert('Błąd połączenia: ' + error.message);
+      }
+    }
+
+    // Load spreadsheets on page load
+    window.addEventListener('DOMContentLoaded', loadSpreadsheets);
   </script>
 </body>
 </html>

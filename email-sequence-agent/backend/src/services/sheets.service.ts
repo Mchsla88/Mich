@@ -221,10 +221,125 @@ export async function updateLeadFields(
   }
 }
 
+// ======================
+// MULTI-SPREADSHEET SUPPORT
+// ======================
+
+// Read leads from specific spreadsheet
+export async function getLeadsFrom(spreadsheetId: string, sheetName: string): Promise<Lead[]> {
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `${sheetName}!A2:Z`,
+    });
+
+    const rows = response.data.values || [];
+
+    return rows.map((row, index): Lead => ({
+      rowIndex: index + 2,
+      email: row[COLUMNS.EMAIL] || '',
+      firma: row[COLUMNS.FIRMA] || '',
+      website_url: row[COLUMNS.WEBSITE_URL] || '',
+      imie: row[COLUMNS.IMIE] || '',
+      generuj: parseBoolean(row[COLUMNS.GENERUJ]),
+      status: (row[COLUMNS.STATUS] as LeadStatus) || 'nowy',
+      research_notes: row[COLUMNS.RESEARCH_NOTES],
+      research_sources: row[COLUMNS.RESEARCH_SOURCES],
+      research_date: row[COLUMNS.RESEARCH_DATE],
+      step1_subject: row[COLUMNS.STEP1_SUBJECT],
+      step1_body: row[COLUMNS.STEP1_BODY],
+      step1_sent_date: row[COLUMNS.STEP1_SENT_DATE],
+      step1_message_id: row[COLUMNS.STEP1_MESSAGE_ID],
+      step2_subject: row[COLUMNS.STEP2_SUBJECT],
+      step2_body: row[COLUMNS.STEP2_BODY],
+      step2_sent_date: row[COLUMNS.STEP2_SENT_DATE],
+      step2_message_id: row[COLUMNS.STEP2_MESSAGE_ID],
+      step3_subject: row[COLUMNS.STEP3_SUBJECT],
+      step3_body: row[COLUMNS.STEP3_BODY],
+      step3_sent_date: row[COLUMNS.STEP3_SENT_DATE],
+      step3_message_id: row[COLUMNS.STEP3_MESSAGE_ID],
+      reply_received: parseBoolean(row[COLUMNS.REPLY_RECEIVED]),
+      reply_date: row[COLUMNS.REPLY_DATE],
+      last_check: row[COLUMNS.LAST_CHECK],
+      notatki: row[COLUMNS.NOTATKI],
+      created_at: row[COLUMNS.CREATED_AT],
+    }));
+  } catch (error) {
+    console.error(`❌ Error reading leads from ${spreadsheetId}/${sheetName}:`, error);
+    throw error;
+  }
+}
+
+// Get leads to process from specific spreadsheet
+export async function getLeadsToProcessFrom(spreadsheetId: string, sheetName: string): Promise<Lead[]> {
+  const allLeads = await getLeadsFrom(spreadsheetId, sheetName);
+  return allLeads.filter(lead =>
+    lead.generuj === true &&
+    lead.status !== 'odpowiedź' &&
+    lead.status !== 'zakończone'
+  );
+}
+
+// Update lead fields in specific spreadsheet
+export async function updateLeadFieldsIn(
+  spreadsheetId: string,
+  sheetName: string,
+  rowIndex: number,
+  updates: Partial<Lead>
+): Promise<void> {
+  try {
+    // Read current lead
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `${sheetName}!A${rowIndex}:Z${rowIndex}`,
+    });
+
+    const currentRow = response.data.values?.[0] || [];
+
+    // Merge updates
+    if (updates.status !== undefined) currentRow[COLUMNS.STATUS] = updates.status;
+    if (updates.research_notes !== undefined) currentRow[COLUMNS.RESEARCH_NOTES] = updates.research_notes;
+    if (updates.research_sources !== undefined) currentRow[COLUMNS.RESEARCH_SOURCES] = updates.research_sources;
+    if (updates.research_date !== undefined) currentRow[COLUMNS.RESEARCH_DATE] = updates.research_date;
+    if (updates.step1_subject !== undefined) currentRow[COLUMNS.STEP1_SUBJECT] = updates.step1_subject;
+    if (updates.step1_body !== undefined) currentRow[COLUMNS.STEP1_BODY] = updates.step1_body;
+    if (updates.step1_sent_date !== undefined) currentRow[COLUMNS.STEP1_SENT_DATE] = updates.step1_sent_date;
+    if (updates.step1_message_id !== undefined) currentRow[COLUMNS.STEP1_MESSAGE_ID] = updates.step1_message_id;
+    if (updates.step2_subject !== undefined) currentRow[COLUMNS.STEP2_SUBJECT] = updates.step2_subject;
+    if (updates.step2_body !== undefined) currentRow[COLUMNS.STEP2_BODY] = updates.step2_body;
+    if (updates.step2_sent_date !== undefined) currentRow[COLUMNS.STEP2_SENT_DATE] = updates.step2_sent_date;
+    if (updates.step2_message_id !== undefined) currentRow[COLUMNS.STEP2_MESSAGE_ID] = updates.step2_message_id;
+    if (updates.step3_subject !== undefined) currentRow[COLUMNS.STEP3_SUBJECT] = updates.step3_subject;
+    if (updates.step3_body !== undefined) currentRow[COLUMNS.STEP3_BODY] = updates.step3_body;
+    if (updates.step3_sent_date !== undefined) currentRow[COLUMNS.STEP3_SENT_DATE] = updates.step3_sent_date;
+    if (updates.step3_message_id !== undefined) currentRow[COLUMNS.STEP3_MESSAGE_ID] = updates.step3_message_id;
+    if (updates.reply_received !== undefined) currentRow[COLUMNS.REPLY_RECEIVED] = updates.reply_received;
+    if (updates.reply_date !== undefined) currentRow[COLUMNS.REPLY_DATE] = updates.reply_date;
+    if (updates.last_check !== undefined) currentRow[COLUMNS.LAST_CHECK] = updates.last_check;
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${sheetName}!A${rowIndex}:Z${rowIndex}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [currentRow],
+      },
+    });
+
+    console.log(`✅ Updated fields for row ${rowIndex} in ${sheetName}`);
+  } catch (error) {
+    console.error(`❌ Error updating fields in ${spreadsheetId}/${sheetName}:`, error);
+    throw error;
+  }
+}
+
 export default {
   initGoogleAuth,
   getLeads,
   getLeadsToProcess,
   updateLead,
   updateLeadFields,
+  getLeadsFrom,
+  getLeadsToProcessFrom,
+  updateLeadFieldsIn,
 };

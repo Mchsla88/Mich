@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import * as processorService from './processor.service.js';
+import * as processorService from './processor-multi.service.js';
 import config from '../config.js';
 
 let schedulerTask: cron.ScheduledTask | null = null;
