@@ -1,4 +1,7 @@
-export declare function processAllResearch(): Promise<number>;
+export declare function processAllResearch(): Promise<{
+    processed: number;
+    errors: string[];
+}>;
 export declare function processAllSequenceGeneration(): Promise<number>;
 export declare function processAllSending(): Promise<number>;
 export declare function checkAllReplies(): Promise<number>;

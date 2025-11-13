@@ -7,37 +7,45 @@ import * as spreadsheetStorage from './spreadsheet.storage.js';
 import config from '../config.js';
 // Process research for all active spreadsheets
 export async function processAllResearch() {
+    const errors = [];
     try {
         console.log('\n🔍 === PROCESSING RESEARCH (MULTI-SPREADSHEET) ===');
         const spreadsheets = await spreadsheetStorage.getActiveSpreadsheets();
         if (spreadsheets.length === 0) {
             console.log('No active spreadsheets');
-            return 0;
+            return { processed: 0, errors };
         }
         console.log(`Found ${spreadsheets.length} active spreadsheet(s)`);
         let totalProcessed = 0;
         for (const spreadsheet of spreadsheets) {
             console.log(`\n📚 Processing spreadsheet: ${spreadsheet.name}`);
-            const processed = await processResearchForSpreadsheet(spreadsheet);
-            totalProcessed += processed;
+            try {
+                const processed = await processResearchForSpreadsheet(spreadsheet);
+                totalProcessed += processed;
+            }
+            catch (error) {
+                const errorMsg = `Research failed for ${spreadsheet.name}: ${error.message}`;
+                errors.push(errorMsg);
+                console.error('❌', errorMsg);
+            }
         }
         console.log(`\n✅ Total research processed: ${totalProcessed}`);
-        return totalProcessed;
+        return { processed: totalProcessed, errors };
     }
     catch (error) {
         console.error('❌ Error in processAllResearch:', error);
-        return 0;
+        errors.push(`Research fatal error: ${error.message}`);
+        return { processed: 0, errors };
     }
 }
 // Process research for specific spreadsheet
 async function processResearchForSpreadsheet(spreadsheet) {
+    // Validate OAuth tokens
+    if (!spreadsheet.googleAccessToken || !spreadsheet.googleRefreshToken) {
+        throw new Error('Missing OAuth tokens - please authorize with Google');
+    }
+    const leads = await sheetsService.getLeadsToProcessFrom(spreadsheet.spreadsheetId, spreadsheet.sheetName, spreadsheet.googleAccessToken, spreadsheet.googleRefreshToken);
     try {
-        // Validate OAuth tokens
-        if (!spreadsheet.googleAccessToken || !spreadsheet.googleRefreshToken) {
-            console.log(`  ⚠️  Skipping ${spreadsheet.name} - missing OAuth tokens. Please authorize with Google.`);
-            return 0;
-        }
-        const leads = await sheetsService.getLeadsToProcessFrom(spreadsheet.spreadsheetId, spreadsheet.sheetName, spreadsheet.googleAccessToken, spreadsheet.googleRefreshToken);
         const leadsNeedingResearch = leads.filter(lead => lead.status === 'nowy' && !lead.research_notes);
         if (leadsNeedingResearch.length === 0) {
             console.log(`  No leads needing research in ${spreadsheet.name}`);
@@ -79,8 +87,8 @@ async function processResearchForSpreadsheet(spreadsheet) {
         return processed;
     }
     catch (error) {
-        console.error(`❌ Error in processResearchForSpreadsheet:`, error);
-        return 0;
+        console.error(`❌ Error processing leads for research:`, error);
+        throw error;
     }
 }
 // Process sequence generation for all active spreadsheets
@@ -402,10 +410,12 @@ export async function processAll() {
         console.log('⏰ Time:', new Date().toLocaleString('pl-PL', { timeZone: config.timezone }));
         console.log('='.repeat(60));
         try {
-            researchProcessed = await processAllResearch();
+            const result = await processAllResearch();
+            researchProcessed = result.processed;
+            errors.push(...result.errors);
         }
         catch (error) {
-            errors.push(`Research: ${error.message}`);
+            errors.push(`Research fatal: ${error.message}`);
             console.error('❌ Error in research:', error);
         }
         try {
