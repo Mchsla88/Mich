@@ -1,6 +1,18 @@
 import dotenv from 'dotenv';
-// Load environment variables first
-dotenv.config();
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { existsSync } from 'fs';
+
+// Get directory name in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load environment variables from backend/.env (one level up from src/)
+const envPath = path.join(__dirname, '..', '.env');
+dotenv.config({ path: envPath });
+
+console.log('📁 Loading .env from:', envPath);
+console.log('📁 .env file exists:', existsSync(envPath));
 
 import express, { Request, Response } from 'express';
 import session from 'express-session';
