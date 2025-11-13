@@ -20,6 +20,7 @@ dotenv.config({ path: envPath });
 
 import express, { Request, Response } from 'express';
 import session from 'express-session';
+import cookieParser from 'cookie-parser';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import config, { updateConfig, getConfig } from './config.js';
@@ -34,6 +35,7 @@ const app = express();
 
 // Middleware
 app.use(express.json());
+app.use(cookieParser());
 
 // Session middleware (required for OAuth)
 app.use(
@@ -135,10 +137,6 @@ async function initialize() {
 // OAUTH ENDPOINTS
 // ======================
 
-// In-memory store for pending OAuth sessions
-// Maps sessionID -> spreadsheetId
-const pendingOAuthSessions = new Map<string, string>();
-
 // Start OAuth flow - redirect to Google
 app.get('/auth/google', (req: Request, res: Response, next) => {
   const spreadsheetId = req.query.spreadsheetId as string;
@@ -147,13 +145,14 @@ app.get('/auth/google', (req: Request, res: Response, next) => {
     return res.status(400).send('Missing spreadsheetId parameter');
   }
 
-  // Store spreadsheetId in memory mapped to session ID
-  const sessionId = (req.session as any).id || req.sessionID;
-  pendingOAuthSessions.set(sessionId, spreadsheetId);
+  // Store spreadsheetId in a cookie (will be sent back with callback)
+  res.cookie('oauth_spreadsheet_id', spreadsheetId, {
+    httpOnly: true,
+    maxAge: 10 * 60 * 1000, // 10 minutes
+  });
 
-  console.log(`🔐 Starting OAuth for spreadsheet ${spreadsheetId}, session ${sessionId}`);
-  console.log(`  Pending sessions map size: ${pendingOAuthSessions.size}`);
-  console.log(`  Session cookie:`, req.headers.cookie);
+  console.log(`🔐 Starting OAuth for spreadsheet ${spreadsheetId}`);
+  console.log(`  Set cookie: oauth_spreadsheet_id=${spreadsheetId}`);
 
   passport.authenticate('google', {
     scope: [
@@ -176,32 +175,29 @@ app.get(
     try {
       const user = req.user as any;
 
-      // Get spreadsheetId from in-memory store
-      const sessionId = (req.session as any).id || req.sessionID;
-      const spreadsheetId = pendingOAuthSessions.get(sessionId);
+      // Get spreadsheetId from cookie
+      const spreadsheetId = req.cookies.oauth_spreadsheet_id;
 
-      console.log(`🔐 OAuth callback for session ${sessionId}`);
-      console.log(`  Spreadsheet ID from store: ${spreadsheetId}`);
-      console.log(`  Pending sessions map size: ${pendingOAuthSessions.size}`);
-      console.log(`  All pending session IDs:`, Array.from(pendingOAuthSessions.keys()));
-      console.log(`  Session cookie:`, req.headers.cookie);
+      console.log(`🔐 OAuth callback`);
+      console.log(`  Spreadsheet ID from cookie: ${spreadsheetId}`);
+      console.log(`  All cookies:`, req.cookies);
 
       if (!spreadsheetId) {
-        console.log('❌ No spreadsheetId found in pending sessions!');
+        console.log('❌ No spreadsheetId found in cookie!');
         return res.send(`
           <html>
             <body>
               <h1>❌ Błąd</h1>
               <p>Brak ID arkusza. Spróbuj ponownie z dashboardu.</p>
-              <p>Debug: sessionId = ${sessionId}</p>
+              <p>Debug: cookie missing or expired</p>
               <a href="/">Wróć do dashboardu</a>
             </body>
           </html>
         `);
       }
 
-      // Remove from pending sessions (one-time use)
-      pendingOAuthSessions.delete(sessionId);
+      // Clear the cookie (one-time use)
+      res.clearCookie('oauth_spreadsheet_id');
 
       // Save tokens to spreadsheet config
       const spreadsheet = await spreadsheetStorage.getSpreadsheet(spreadsheetId);
