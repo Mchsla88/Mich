@@ -1974,10 +1974,17 @@ app.get('/', (req: Request, res: Response) => {
       let spreadsheetId = spreadsheetInput;
       if (spreadsheetInput.includes('docs.google.com/spreadsheets')) {
         // Extract ID from URL like: https://docs.google.com/spreadsheets/d/ID/edit
-        const match = spreadsheetInput.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-        if (match && match[1]) {
-          spreadsheetId = match[1];
-          console.log('Extracted spreadsheet ID from URL:', spreadsheetId);
+        const parts = spreadsheetInput.split('/d/');
+        if (parts.length >= 2) {
+          const idPart = parts[1].split('/')[0];
+          if (idPart && idPart.match(/^[a-zA-Z0-9-_]+$/)) {
+            spreadsheetId = idPart;
+            console.log('Extracted spreadsheet ID from URL:', spreadsheetId);
+          } else {
+            errorDiv.textContent = 'Nie można wyciągnąć ID z tego URLa. Sprawdź czy URL jest poprawny.';
+            errorDiv.style.display = 'block';
+            return;
+          }
         } else {
           errorDiv.textContent = 'Nie można wyciągnąć ID z tego URLa. Sprawdź czy URL jest poprawny.';
           errorDiv.style.display = 'block';
