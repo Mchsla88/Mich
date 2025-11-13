@@ -145,6 +145,8 @@ export interface SpreadsheetConfig {
   credentialsFileName?: string; // Google credentials JSON filename (stored in credentials/)
   aiProvider: 'anthropic' | 'gemini'; // AI provider to use
   aiApiKey?: string; // AI API key (optional, uses global config if not provided)
+  limitPerHour?: number; // Hourly email limit (optional, uses global if not provided)
+  limitPerDay?: number; // Daily email limit (optional, uses global if not provided)
   name: string; // Friendly name (e.g., "Kampania Web Design")
   active: boolean; // Is this spreadsheet active?
   createdAt: string;

@@ -516,6 +516,34 @@ app.delete('/api/spreadsheets/:id', async (req: Request, res: Response) => {
   }
 });
 
+// Update spreadsheet
+app.put('/api/spreadsheets/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    const updated = await spreadsheetStorage.updateSpreadsheet(id, updates);
+
+    if (!updated) {
+      return res.status(404).json({
+        success: false,
+        error: 'Spreadsheet not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      spreadsheet: updated,
+      message: 'Spreadsheet updated successfully',
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
 // Upload Google credentials file
 app.post('/api/credentials/upload', async (req: Request, res: Response) => {
   try {
@@ -890,6 +918,28 @@ app.get('/', (req: Request, res: Response) => {
         </div>
 
         <div class="form-group">
+          <label for="newSignatureFile">Lub załaduj stopkę z pliku HTML</label>
+          <input type="file" id="newSignatureFile" accept=".html,.htm" onchange="handleSignatureFileSelect(event)" />
+          <small style="color: #666;">Opcjonalne - plik HTML ze stopką email. Zastąpi zawartość pola powyżej.</small>
+          <div id="signatureFileStatus" style="margin-top: 8px; font-size: 13px;"></div>
+        </div>
+
+        <div class="form-group">
+          <label>Limity wysyłek</label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+              <label for="newLimitPerHour" style="font-size: 13px; font-weight: normal;">Na godzinę</label>
+              <input type="number" id="newLimitPerHour" placeholder="10" min="1" max="100" />
+            </div>
+            <div>
+              <label for="newLimitPerDay" style="font-size: 13px; font-weight: normal;">Na dzień</label>
+              <input type="number" id="newLimitPerDay" placeholder="50" min="1" max="500" />
+            </div>
+          </div>
+          <small style="color: #666;">Opcjonalne - dedykowane limity dla tej kampanii. Jeśli puste, użyje globalnych (10/godz, 50/dzień).</small>
+        </div>
+
+        <div class="form-group">
           <label>Dostawca AI *</label>
           <div style="display: flex; gap: 20px; margin-top: 8px;">
             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
@@ -1108,10 +1158,15 @@ app.get('/', (req: Request, res: Response) => {
                   <div style="margin-top: 8px; font-size: 14px; color: #666;">
                     📧 <strong>\${s.senderName}</strong> &lt;\${s.senderEmail}&gt;<br>
                     📊 Sheet: <code>\${s.sheetName}</code><br>
+                    🤖 AI: <strong>\${s.aiProvider === 'gemini' ? 'Google Gemini' : 'Anthropic Claude'}</strong><br>
+                    📊 Limity: \${s.limitPerHour || 'Global'}/godz, \${s.limitPerDay || 'Global'}/dzień<br>
                     🆔 ID: <code style="font-size: 11px;">\${s.spreadsheetId}</code>
                   </div>
                 </div>
                 <div>
+                  <button onclick="editSpreadsheet('\${s.id}')" style="padding: 8px 16px; margin: 2px; background: #28a745;">
+                    ✏️ Edytuj
+                  </button>
                   <button onclick="toggleSpreadsheet('\${s.id}')" style="padding: 8px 16px; margin: 2px;">
                     \${s.active ? '⏸️ Dezaktywuj' : '▶️ Aktywuj'}
                   </button>
@@ -1132,8 +1187,33 @@ app.get('/', (req: Request, res: Response) => {
       document.getElementById('addSpreadsheetForm').style.display = 'block';
     }
 
-    // Global variable for credentials file
+    // Global variables for file uploads
     let selectedCredentialsFile = null;
+    let editingSpreadsheetId = null; // For edit mode
+
+    function handleSignatureFileSelect(event) {
+      const file = event.target.files[0];
+      const statusDiv = document.getElementById('signatureFileStatus');
+      const signatureTextarea = document.getElementById('newSignature');
+
+      if (!file) {
+        statusDiv.innerHTML = '';
+        return;
+      }
+
+      if (!file.name.match(/\.(html|htm)$/i)) {
+        statusDiv.innerHTML = '<span style="color: red;">❌ Plik musi być w formacie HTML</span>';
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const content = e.target.result;
+        signatureTextarea.value = content;
+        statusDiv.innerHTML = '<span style="color: green;">✅ ' + file.name + ' załadowany</span>';
+      };
+      reader.readAsText(file);
+    }
 
     function handleCredentialsFileSelect(event) {
       const file = event.target.files[0];
@@ -1190,6 +1270,7 @@ app.get('/', (req: Request, res: Response) => {
 
     function hideAddSpreadsheetForm() {
       document.getElementById('addSpreadsheetForm').style.display = 'none';
+      editingSpreadsheetId = null;
       // Clear form
       document.getElementById('newSpreadsheetId').value = '';
       document.getElementById('newSheetName').value = 'Leads';
@@ -1197,11 +1278,64 @@ app.get('/', (req: Request, res: Response) => {
       document.getElementById('newSenderEmail').value = '';
       document.getElementById('newSenderName').value = '';
       document.getElementById('newSignature').value = '';
+      document.getElementById('newSignatureFile').value = '';
+      document.getElementById('signatureFileStatus').innerHTML = '';
+      document.getElementById('newLimitPerHour').value = '';
+      document.getElementById('newLimitPerDay').value = '';
       document.getElementById('newAiApiKey').value = '';
       document.getElementById('newCredentialsFile').value = '';
       document.getElementById('credentialsFileStatus').innerHTML = '';
       selectedCredentialsFile = null;
       document.querySelector('input[name="aiProvider"][value="anthropic"]').checked = true;
+
+      // Update button text
+      const addButton = document.querySelector('#addSpreadsheetForm button[onclick="addSpreadsheet()"]');
+      addButton.textContent = '💾 Dodaj arkusz';
+    }
+
+    function editSpreadsheet(id) {
+      // Fetch spreadsheet data
+      fetch('/api/spreadsheets')
+        .then(res => res.json())
+        .then(data => {
+          const spreadsheet = data.spreadsheets.find(s => s.id === id);
+          if (!spreadsheet) {
+            alert('Nie znaleziono arkusza');
+            return;
+          }
+
+          // Populate form
+          editingSpreadsheetId = id;
+          document.getElementById('newSpreadsheetId').value = spreadsheet.spreadsheetId;
+          document.getElementById('newSheetName').value = spreadsheet.sheetName;
+          document.getElementById('newSpreadsheetName').value = spreadsheet.name;
+          document.getElementById('newSenderEmail').value = spreadsheet.senderEmail;
+          document.getElementById('newSenderName').value = spreadsheet.senderName;
+          document.getElementById('newSignature').value = spreadsheet.signature || '';
+          document.getElementById('newLimitPerHour').value = spreadsheet.limitPerHour || '';
+          document.getElementById('newLimitPerDay').value = spreadsheet.limitPerDay || '';
+          document.getElementById('newAiApiKey').value = spreadsheet.aiApiKey ? '••••••••' : '';
+
+          // Set AI provider
+          const providerRadio = document.querySelector(`input[name="aiProvider"][value="${spreadsheet.aiProvider}"]`);
+          if (providerRadio) {
+            providerRadio.checked = true;
+            toggleAiProviderFields();
+          }
+
+          // Show form
+          document.getElementById('addSpreadsheetForm').style.display = 'block';
+
+          // Update button text
+          const addButton = document.querySelector('#addSpreadsheetForm button[onclick="addSpreadsheet()"]');
+          addButton.textContent = '💾 Zapisz zmiany';
+
+          // Scroll to form
+          document.getElementById('addSpreadsheetForm').scrollIntoView({ behavior: 'smooth' });
+        })
+        .catch(error => {
+          alert('Błąd podczas ładowania danych: ' + error);
+        });
     }
 
     async function addSpreadsheet() {
@@ -1217,6 +1351,8 @@ app.get('/', (req: Request, res: Response) => {
       const senderEmail = document.getElementById('newSenderEmail').value.trim();
       const senderName = document.getElementById('newSenderName').value.trim();
       const signature = document.getElementById('newSignature').value.trim();
+      const limitPerHour = document.getElementById('newLimitPerHour').value.trim();
+      const limitPerDay = document.getElementById('newLimitPerDay').value.trim();
       const aiProvider = document.querySelector('input[name="aiProvider"]:checked').value;
       const aiApiKey = document.getElementById('newAiApiKey').value.trim();
 
@@ -1229,7 +1365,7 @@ app.get('/', (req: Request, res: Response) => {
       try {
         let credentialsFileName = null;
 
-        // Upload credentials file if selected
+        // Upload credentials file if selected (only for new spreadsheets or if file changed)
         if (selectedCredentialsFile) {
           try {
             const uploadResponse = await fetch('/api/credentials/upload', {
@@ -1274,15 +1410,26 @@ app.get('/', (req: Request, res: Response) => {
         if (signature) {
           payload.signature = signature;
         }
-        if (aiApiKey) {
+        if (aiApiKey && aiApiKey !== '••••••••') {
           payload.aiApiKey = aiApiKey;
         }
         if (credentialsFileName) {
           payload.credentialsFileName = credentialsFileName;
         }
+        if (limitPerHour) {
+          payload.limitPerHour = parseInt(limitPerHour, 10);
+        }
+        if (limitPerDay) {
+          payload.limitPerDay = parseInt(limitPerDay, 10);
+        }
 
-        const response = await fetch('/api/spreadsheets', {
-          method: 'POST',
+        // Determine if this is edit or add
+        const isEdit = editingSpreadsheetId !== null;
+        const url = isEdit ? `/api/spreadsheets/${editingSpreadsheetId}` : '/api/spreadsheets';
+        const method = isEdit ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+          method: method,
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify(payload)
         });
@@ -1290,7 +1437,7 @@ app.get('/', (req: Request, res: Response) => {
         const data = await response.json();
 
         if (data.success) {
-          successDiv.textContent = '✓ Arkusz dodany! Odświeżam...';
+          successDiv.textContent = isEdit ? '✓ Zmiany zapisane! Odświeżam...' : '✓ Arkusz dodany! Odświeżam...';
           successDiv.style.display = 'block';
           setTimeout(() => {
             hideAddSpreadsheetForm();

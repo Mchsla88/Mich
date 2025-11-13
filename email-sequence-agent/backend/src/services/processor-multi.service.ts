@@ -291,12 +291,16 @@ async function processSendingForSpreadsheet(spreadsheet: SpreadsheetConfig): Pro
         if (!lead.step1_sent_date) {
           console.log(`  📨 Sending Step 1 to ${lead.email} (${lead.firma}) from ${spreadsheet.senderEmail}`);
 
-          // Override config sender for this email
+          // Override config sender and limits for this email
           const originalSender = config.senderEmail;
           const originalSenderName = config.senderName;
+          const originalLimitPerHour = config.limitPerHour;
+          const originalLimitPerDay = config.limitPerDay;
 
           config.senderEmail = spreadsheet.senderEmail;
           config.senderName = spreadsheet.senderName;
+          if (spreadsheet.limitPerHour) config.limitPerHour = spreadsheet.limitPerHour;
+          if (spreadsheet.limitPerDay) config.limitPerDay = spreadsheet.limitPerDay;
 
           const result = await gmailService.sendEmail(
             lead.email,
@@ -307,6 +311,8 @@ async function processSendingForSpreadsheet(spreadsheet: SpreadsheetConfig): Pro
           // Restore original config
           config.senderEmail = originalSender;
           config.senderName = originalSenderName;
+          config.limitPerHour = originalLimitPerHour;
+          config.limitPerDay = originalLimitPerDay;
 
           if (result.success) {
             await sheetsService.updateLeadFieldsIn(
@@ -338,9 +344,13 @@ async function processSendingForSpreadsheet(spreadsheet: SpreadsheetConfig): Pro
 
             const originalSender = config.senderEmail;
             const originalSenderName = config.senderName;
+            const originalLimitPerHour = config.limitPerHour;
+            const originalLimitPerDay = config.limitPerDay;
 
             config.senderEmail = spreadsheet.senderEmail;
             config.senderName = spreadsheet.senderName;
+            if (spreadsheet.limitPerHour) config.limitPerHour = spreadsheet.limitPerHour;
+            if (spreadsheet.limitPerDay) config.limitPerDay = spreadsheet.limitPerDay;
 
             const result = await gmailService.sendEmail(
               lead.email,
@@ -354,6 +364,8 @@ async function processSendingForSpreadsheet(spreadsheet: SpreadsheetConfig): Pro
 
             config.senderEmail = originalSender;
             config.senderName = originalSenderName;
+            config.limitPerHour = originalLimitPerHour;
+            config.limitPerDay = originalLimitPerDay;
 
             if (result.success) {
               await sheetsService.updateLeadFieldsIn(
@@ -381,9 +393,13 @@ async function processSendingForSpreadsheet(spreadsheet: SpreadsheetConfig): Pro
 
             const originalSender = config.senderEmail;
             const originalSenderName = config.senderName;
+            const originalLimitPerHour = config.limitPerHour;
+            const originalLimitPerDay = config.limitPerDay;
 
             config.senderEmail = spreadsheet.senderEmail;
             config.senderName = spreadsheet.senderName;
+            if (spreadsheet.limitPerHour) config.limitPerHour = spreadsheet.limitPerHour;
+            if (spreadsheet.limitPerDay) config.limitPerDay = spreadsheet.limitPerDay;
 
             const result = await gmailService.sendEmail(
               lead.email,
@@ -397,6 +413,8 @@ async function processSendingForSpreadsheet(spreadsheet: SpreadsheetConfig): Pro
 
             config.senderEmail = originalSender;
             config.senderName = originalSenderName;
+            config.limitPerHour = originalLimitPerHour;
+            config.limitPerDay = originalLimitPerDay;
 
             if (result.success) {
               await sheetsService.updateLeadFieldsIn(
