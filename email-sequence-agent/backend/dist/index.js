@@ -1870,7 +1870,7 @@ app.get('/', (req, res) => {
       let spreadsheetId = spreadsheetInput;
       if (spreadsheetInput.includes('docs.google.com/spreadsheets')) {
         // Extract ID from URL like: https://docs.google.com/spreadsheets/d/ID/edit
-        const match = spreadsheetInput.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+        const match = spreadsheetInput.match(/\\/spreadsheets\\/d\\/([a-zA-Z0-9-_]+)/);
         if (match && match[1]) {
           spreadsheetId = match[1];
           console.log('Extracted spreadsheet ID from URL:', spreadsheetId);
