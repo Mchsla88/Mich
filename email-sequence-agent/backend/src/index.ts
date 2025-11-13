@@ -1,18 +1,22 @@
 import dotenv from 'dotenv';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
 
-// Get directory name in ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Load environment variables from backend/.env
+// Use process.cwd() which is the directory from which the process was started
+const envPath = path.join(process.cwd(), '.env');
+const envExists = existsSync(envPath);
 
-// Load environment variables from backend/.env (one level up from src/)
-const envPath = path.join(__dirname, '..', '.env');
-dotenv.config({ path: envPath });
-
+console.log('📁 Current working directory:', process.cwd());
 console.log('📁 Loading .env from:', envPath);
-console.log('📁 .env file exists:', existsSync(envPath));
+console.log('📁 .env file exists:', envExists);
+
+if (!envExists) {
+  console.error('❌ .env file not found! Create it from .env.example');
+  console.error('   Run: cp .env.example .env');
+}
+
+dotenv.config({ path: envPath });
 
 import express, { Request, Response } from 'express';
 import session from 'express-session';
