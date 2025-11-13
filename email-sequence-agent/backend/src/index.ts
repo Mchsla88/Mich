@@ -40,7 +40,7 @@ app.use(
   session({
     secret: process.env.SESSION_SECRET || 'your-secret-key-change-in-production',
     resave: false,
-    saveUninitialized: false,
+    saveUninitialized: true, // IMPORTANT: must be true to create session before OAuth redirect
     cookie: {
       secure: false, // set to true if using HTTPS
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
@@ -152,6 +152,8 @@ app.get('/auth/google', (req: Request, res: Response, next) => {
   pendingOAuthSessions.set(sessionId, spreadsheetId);
 
   console.log(`🔐 Starting OAuth for spreadsheet ${spreadsheetId}, session ${sessionId}`);
+  console.log(`  Pending sessions map size: ${pendingOAuthSessions.size}`);
+  console.log(`  Session cookie:`, req.headers.cookie);
 
   passport.authenticate('google', {
     scope: [
@@ -180,6 +182,9 @@ app.get(
 
       console.log(`🔐 OAuth callback for session ${sessionId}`);
       console.log(`  Spreadsheet ID from store: ${spreadsheetId}`);
+      console.log(`  Pending sessions map size: ${pendingOAuthSessions.size}`);
+      console.log(`  All pending session IDs:`, Array.from(pendingOAuthSessions.keys()));
+      console.log(`  Session cookie:`, req.headers.cookie);
 
       if (!spreadsheetId) {
         console.log('❌ No spreadsheetId found in pending sessions!');
