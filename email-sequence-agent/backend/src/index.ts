@@ -1317,7 +1317,7 @@ app.get('/', (req: Request, res: Response) => {
           document.getElementById('newAiApiKey').value = spreadsheet.aiApiKey ? '••••••••' : '';
 
           // Set AI provider
-          const providerRadio = document.querySelector(`input[name="aiProvider"][value="${spreadsheet.aiProvider}"]`);
+          const providerRadio = document.querySelector('input[name="aiProvider"][value="' + spreadsheet.aiProvider + '"]');
           if (providerRadio) {
             providerRadio.checked = true;
             toggleAiProviderFields();
