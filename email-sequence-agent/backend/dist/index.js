@@ -1541,7 +1541,7 @@ app.get('/', (req, res) => {
       <div>
         <button class="success" onclick="fetch('/api/scheduler/start', {method:'POST'}).then(() => alert('Scheduler uruchomiony!')).catch(e => alert('Błąd: ' + e))">▶️ Start</button>
         <button class="danger" onclick="fetch('/api/scheduler/stop', {method:'POST'}).then(() => alert('Scheduler zatrzymany!')).catch(e => alert('Błąd: ' + e))">⏹️ Stop</button>
-        <button onclick="runProcessNow()">⚡ Uruchom teraz</button>
+        <button onclick="runProcessNow(this)">⚡ Uruchom teraz</button>
         <button onclick="window.location.reload()">🔄 Odśwież status</button>
       </div>
     </div>
@@ -1587,9 +1587,8 @@ app.get('/', (req, res) => {
       }
     }
 
-    async function runProcessNow() {
+    async function runProcessNow(button) {
       try {
-        const button = event.target;
         button.disabled = true;
         button.textContent = '⏳ Przetwarzanie...';
 
