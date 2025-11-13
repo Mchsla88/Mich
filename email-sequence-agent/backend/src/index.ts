@@ -1442,14 +1442,18 @@ app.get('/', (req: Request, res: Response) => {
       </p>
 
       <div class="form-group">
-        <label for="apiKey">Anthropic API Key (Claude AI)</label>
+        <label for="apiKey">🌍 Globalny Anthropic API Key (fallback dla kampanii bez własnego klucza)</label>
         <input
           type="password"
           id="apiKey"
           placeholder="sk-ant-api03-..."
           value="${config.anthropicApiKey ? '••••••••••••••••' : ''}"
         />
-        <small style="color: #666;">Klucz API do Claude. Pobierz z: <a href="https://console.anthropic.com/" target="_blank">console.anthropic.com</a></small>
+        <small style="color: #666;">
+          <strong>Uwaga:</strong> Ten klucz jest używany TYLKO gdy kampania nie ma własnego klucza API.
+          Możesz podać dedykowany klucz dla każdej kampanii osobno w formularzu edycji.
+          Pobierz z: <a href="https://console.anthropic.com/" target="_blank">console.anthropic.com</a>
+        </small>
       </div>
 
       <div class="form-group">
