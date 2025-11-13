@@ -27,7 +27,7 @@ function getGmailClient(accessToken: string, refreshToken?: string) {
     }
   });
 
-  return google.gmail({ version: 'v3', auth: oauth2Client });
+  return google.gmail({ version: 'v1', auth: oauth2Client });
 }
 
 // Rate limiter state

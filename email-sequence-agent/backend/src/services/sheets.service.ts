@@ -78,6 +78,12 @@ function parseBoolean(value: any): boolean {
 // Read all leads from sheet
 export async function getLeads(): Promise<Lead[]> {
   try {
+    // NOTE: This function is for legacy single-spreadsheet mode
+    // For multi-campaign mode, use processor-multi.service.ts
+    console.warn('⚠️  getLeads() called - this is legacy code for service account mode');
+    return [];
+
+    /* Legacy code - requires service account:
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: config.googleSpreadsheetId,
       range: `${config.googleSheetName}!A2:Z`, // Skip header row
@@ -114,6 +120,7 @@ export async function getLeads(): Promise<Lead[]> {
       notatki: row[COLUMNS.NOTATKI],
       created_at: row[COLUMNS.CREATED_AT],
     }));
+    */
   } catch (error) {
     console.error('❌ Error reading leads from sheet:', error);
     throw error;
@@ -132,6 +139,10 @@ export async function getLeadsToProcess(): Promise<Lead[]> {
 
 // Update lead in sheet
 export async function updateLead(lead: Lead): Promise<void> {
+  console.warn('⚠️  updateLead() called - this is legacy code for service account mode');
+  // NOTE: This function is for legacy single-spreadsheet mode
+  // For multi-campaign mode, use processor-multi.service.ts
+  /* Legacy code - requires service account:
   try {
     const row: any[] = [];
     row[COLUMNS.EMAIL] = lead.email;
@@ -175,6 +186,7 @@ export async function updateLead(lead: Lead): Promise<void> {
     console.error(`❌ Error updating lead ${lead.email}:`, error);
     throw error;
   }
+  */
 }
 
 // Update specific fields of a lead
@@ -182,6 +194,10 @@ export async function updateLeadFields(
   rowIndex: number,
   updates: Partial<Lead>
 ): Promise<void> {
+  console.warn('⚠️  updateLeadFields() called - this is legacy code for service account mode');
+  // NOTE: This function is for legacy single-spreadsheet mode
+  // For multi-campaign mode, use processor-multi.service.ts
+  /* Legacy code - requires service account:
   try {
     // Read current lead
     const response = await sheets.spreadsheets.values.get({
@@ -226,6 +242,7 @@ export async function updateLeadFields(
     console.error(`❌ Error updating fields for row ${rowIndex}:`, error);
     throw error;
   }
+  */
 }
 
 // ======================

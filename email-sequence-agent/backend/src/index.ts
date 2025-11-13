@@ -149,6 +149,7 @@ app.get('/auth/google', (req: Request, res: Response, next) => {
   res.cookie('oauth_spreadsheet_id', spreadsheetId, {
     httpOnly: true,
     maxAge: 10 * 60 * 1000, // 10 minutes
+    sameSite: 'lax', // Required for OAuth redirects to work in modern browsers
   });
 
   console.log(`🔐 Starting OAuth for spreadsheet ${spreadsheetId}`);
@@ -758,7 +759,7 @@ app.get('/api/spreadsheets/:id', async (req: Request, res: Response) => {
 // Add new spreadsheet
 app.post('/api/spreadsheets', async (req: Request, res: Response) => {
   try {
-    const { spreadsheetId, sheetName, senderEmail, senderName, replyToEmail, name, active } = req.body;
+    const { spreadsheetId, sheetName, senderEmail, senderName, replyToEmail, name, active, aiProvider, aiApiKey } = req.body;
 
     // Validation
     if (!spreadsheetId || !sheetName || !senderEmail || !senderName || !name) {
@@ -776,6 +777,8 @@ app.post('/api/spreadsheets', async (req: Request, res: Response) => {
       replyToEmail: replyToEmail || senderEmail,
       name,
       active: active !== undefined ? active : true,
+      aiProvider: aiProvider || 'anthropic', // Default to anthropic
+      aiApiKey: aiApiKey || undefined,
     });
 
     res.status(201).json({

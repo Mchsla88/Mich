@@ -548,7 +548,9 @@ async function checkRepliesForSpreadsheet(spreadsheet: SpreadsheetConfig): Promi
       try {
         const hasReply = await gmailService.checkForReplies(
           lead.step1_message_id!,
-          lead.step1_message_id!
+          lead.step1_message_id!,
+          spreadsheet.googleAccessToken!,
+          spreadsheet.googleRefreshToken!
         );
 
         if (hasReply) {
