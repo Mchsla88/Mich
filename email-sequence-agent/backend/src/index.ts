@@ -135,6 +135,10 @@ async function initialize() {
 // OAUTH ENDPOINTS
 // ======================
 
+// In-memory store for pending OAuth sessions
+// Maps sessionID -> spreadsheetId
+const pendingOAuthSessions = new Map<string, string>();
+
 // Start OAuth flow - redirect to Google
 app.get('/auth/google', (req: Request, res: Response, next) => {
   const spreadsheetId = req.query.spreadsheetId as string;
@@ -143,8 +147,12 @@ app.get('/auth/google', (req: Request, res: Response, next) => {
     return res.status(400).send('Missing spreadsheetId parameter');
   }
 
-  // Use OAuth state parameter to pass spreadsheetId through the OAuth flow
-  // This is more reliable than sessions for OAuth flows
+  // Store spreadsheetId in memory mapped to session ID
+  const sessionId = (req.session as any).id || req.sessionID;
+  pendingOAuthSessions.set(sessionId, spreadsheetId);
+
+  console.log(`🔐 Starting OAuth for spreadsheet ${spreadsheetId}, session ${sessionId}`);
+
   passport.authenticate('google', {
     scope: [
       'profile',
@@ -155,7 +163,6 @@ app.get('/auth/google', (req: Request, res: Response, next) => {
     ],
     accessType: 'offline',
     prompt: 'consent', // Force consent to get refresh token
-    state: spreadsheetId, // Pass spreadsheetId via OAuth state parameter
   })(req, res, next);
 });
 
@@ -167,28 +174,29 @@ app.get(
     try {
       const user = req.user as any;
 
-      // DEBUG: Log everything to see what's coming back
-      console.log('🔍 OAuth Callback Debug:');
-      console.log('  req.query:', req.query);
-      console.log('  req.query.state:', req.query.state);
-      console.log('  req.session:', req.session);
+      // Get spreadsheetId from in-memory store
+      const sessionId = (req.session as any).id || req.sessionID;
+      const spreadsheetId = pendingOAuthSessions.get(sessionId);
 
-      // Get spreadsheetId from OAuth state parameter (passed back from Google)
-      const spreadsheetId = req.query.state as string;
+      console.log(`🔐 OAuth callback for session ${sessionId}`);
+      console.log(`  Spreadsheet ID from store: ${spreadsheetId}`);
 
       if (!spreadsheetId) {
-        console.log('❌ No spreadsheetId found in state parameter!');
+        console.log('❌ No spreadsheetId found in pending sessions!');
         return res.send(`
           <html>
             <body>
               <h1>❌ Błąd</h1>
               <p>Brak ID arkusza. Spróbuj ponownie z dashboardu.</p>
-              <p>Debug: state = ${req.query.state}</p>
+              <p>Debug: sessionId = ${sessionId}</p>
               <a href="/">Wróć do dashboardu</a>
             </body>
           </html>
         `);
       }
+
+      // Remove from pending sessions (one-time use)
+      pendingOAuthSessions.delete(sessionId);
 
       // Save tokens to spreadsheet config
       const spreadsheet = await spreadsheetStorage.getSpreadsheet(spreadsheetId);
