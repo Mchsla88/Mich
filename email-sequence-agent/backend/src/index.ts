@@ -1913,28 +1913,9 @@ app.get('/', (req: Request, res: Response) => {
     }
 
     function connectGoogleAccount(spreadsheetId) {
-      // Open OAuth flow in popup window
-      const width = 600;
-      const height = 700;
-      const left = (screen.width - width) / 2;
-      const top = (screen.height - height) / 2;
-
-      const authWindow = window.open(
-        \`/auth/google?spreadsheetId=\${spreadsheetId}\`,
-        'Google Authorization',
-        \`width=\${width},height=\${height},left=\${left},top=\${top}\`
-      );
-
-      // Poll for window close to refresh spreadsheet list
-      const checkWindow = setInterval(() => {
-        if (authWindow.closed) {
-          clearInterval(checkWindow);
-          console.log('Authorization window closed, refreshing list...');
-          setTimeout(() => {
-            loadSpreadsheets();
-          }, 1000);
-        }
-      }, 500);
+      // Direct redirect to OAuth flow (more reliable than popup)
+      console.log('Redirecting to Google OAuth for spreadsheet:', spreadsheetId);
+      window.location.href = \`/auth/google?spreadsheetId=\${spreadsheetId}\`;
     }
 
     // Load spreadsheets on page load
