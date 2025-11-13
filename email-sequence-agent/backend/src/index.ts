@@ -166,15 +166,24 @@ app.get(
   async (req: Request, res: Response) => {
     try {
       const user = req.user as any;
+
+      // DEBUG: Log everything to see what's coming back
+      console.log('🔍 OAuth Callback Debug:');
+      console.log('  req.query:', req.query);
+      console.log('  req.query.state:', req.query.state);
+      console.log('  req.session:', req.session);
+
       // Get spreadsheetId from OAuth state parameter (passed back from Google)
       const spreadsheetId = req.query.state as string;
 
       if (!spreadsheetId) {
+        console.log('❌ No spreadsheetId found in state parameter!');
         return res.send(`
           <html>
             <body>
               <h1>❌ Błąd</h1>
               <p>Brak ID arkusza. Spróbuj ponownie z dashboardu.</p>
+              <p>Debug: state = ${req.query.state}</p>
               <a href="/">Wróć do dashboardu</a>
             </body>
           </html>
