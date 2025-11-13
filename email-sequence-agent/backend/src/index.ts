@@ -1753,6 +1753,8 @@ app.get('/', (req: Request, res: Response) => {
 
           if (data.spreadsheets.length === 0) {
             listDiv.innerHTML = '<p style="color: #666;">Brak arkuszy. Dodaj pierwszy!</p>';
+            // Automatically show the form when there are no spreadsheets
+            showAddSpreadsheetForm();
             return;
           }
 
