@@ -53,15 +53,29 @@ export function stopScheduler() {
 export async function runNow() {
     if (isRunning) {
         console.log('⏳ A run is already in progress');
-        return;
+        return {
+            researchProcessed: 0,
+            sequencesGenerated: 0,
+            emailsSent: 0,
+            repliesFound: 0,
+            errors: ['Process already running'],
+        };
     }
     console.log('▶️  Manual run triggered');
     isRunning = true;
     try {
-        await processorService.processAll();
+        const results = await processorService.processAll();
+        return results;
     }
     catch (error) {
         console.error('❌ Error in manual run:', error);
+        return {
+            researchProcessed: 0,
+            sequencesGenerated: 0,
+            emailsSent: 0,
+            repliesFound: 0,
+            errors: [error.message || 'Unknown error'],
+        };
     }
     finally {
         isRunning = false;

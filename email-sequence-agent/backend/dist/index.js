@@ -487,13 +487,11 @@ app.post('/api/scheduler/stop', (req, res) => {
 // Run now (manual trigger)
 app.post('/api/scheduler/run-now', async (req, res) => {
     try {
-        // Run in background
-        schedulerService.runNow().catch(err => {
-            console.error('Error in manual run:', err);
-        });
+        const results = await schedulerService.runNow();
         res.json({
             success: true,
-            message: 'Manual run triggered',
+            message: 'Process completed',
+            results,
         });
     }
     catch (error) {
@@ -1543,7 +1541,7 @@ app.get('/', (req, res) => {
       <div>
         <button class="success" onclick="fetch('/api/scheduler/start', {method:'POST'}).then(() => alert('Scheduler uruchomiony!')).catch(e => alert('Błąd: ' + e))">▶️ Start</button>
         <button class="danger" onclick="fetch('/api/scheduler/stop', {method:'POST'}).then(() => alert('Scheduler zatrzymany!')).catch(e => alert('Błąd: ' + e))">⏹️ Stop</button>
-        <button onclick="fetch('/api/scheduler/run-now', {method:'POST'}).then(() => alert('Uruchomiono proces!')).catch(e => alert('Błąd: ' + e))">⚡ Uruchom teraz</button>
+        <button onclick="runProcessNow()">⚡ Uruchom teraz</button>
         <button onclick="window.location.reload()">🔄 Odśwież status</button>
       </div>
     </div>
@@ -1586,6 +1584,39 @@ app.get('/', (req, res) => {
         alert(data.message || 'Gotowe!');
       } catch (error) {
         alert('Błąd: ' + error.message);
+      }
+    }
+
+    async function runProcessNow() {
+      try {
+        const button = event.target;
+        button.disabled = true;
+        button.textContent = '⏳ Przetwarzanie...';
+
+        const response = await fetch('/api/scheduler/run-now', {method: 'POST'});
+        const data = await response.json();
+
+        if (data.success && data.results) {
+          const r = data.results;
+          let message = '✅ Proces zakończony!\\n\\n';
+          message += \`🔍 Research: \${r.researchProcessed}\\n\`;
+          message += \`📧 Sekwencje: \${r.sequencesGenerated}\\n\`;
+          message += \`📤 Wysłane: \${r.emailsSent}\\n\`;
+          message += \`📬 Odpowiedzi: \${r.repliesFound}\\n\`;
+
+          if (r.errors && r.errors.length > 0) {
+            message += '\\n❌ Błędy:\\n' + r.errors.join('\\n');
+          }
+
+          alert(message);
+        } else {
+          alert('Uruchomiono proces!');
+        }
+      } catch (error) {
+        alert('Błąd: ' + error.message);
+      } finally {
+        button.disabled = false;
+        button.textContent = '⚡ Uruchom teraz';
       }
     }
 

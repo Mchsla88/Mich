@@ -2,7 +2,13 @@ export declare function processAllResearch(): Promise<number>;
 export declare function processAllSequenceGeneration(): Promise<number>;
 export declare function processAllSending(): Promise<number>;
 export declare function checkAllReplies(): Promise<number>;
-export declare function processAll(): Promise<void>;
+export declare function processAll(): Promise<{
+    researchProcessed: number;
+    sequencesGenerated: number;
+    emailsSent: number;
+    repliesFound: number;
+    errors: string[];
+}>;
 declare const _default: {
     processAllResearch: typeof processAllResearch;
     processAllSequenceGeneration: typeof processAllSequenceGeneration;

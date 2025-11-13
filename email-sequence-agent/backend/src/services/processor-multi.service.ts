@@ -595,17 +595,52 @@ async function checkRepliesForSpreadsheet(spreadsheet: SpreadsheetConfig): Promi
 }
 
 // Main process all function
-export async function processAll(): Promise<void> {
+export async function processAll(): Promise<{
+  researchProcessed: number;
+  sequencesGenerated: number;
+  emailsSent: number;
+  repliesFound: number;
+  errors: string[];
+}> {
+  const errors: string[] = [];
+  let researchProcessed = 0;
+  let sequencesGenerated = 0;
+  let emailsSent = 0;
+  let repliesFound = 0;
+
   try {
     console.log('\n' + '='.repeat(60));
     console.log('🚀 STARTING FULL PROCESS CYCLE (MULTI-SPREADSHEET)');
     console.log('⏰ Time:', new Date().toLocaleString('pl-PL', { timeZone: config.timezone }));
     console.log('='.repeat(60));
 
-    await processAllResearch();
-    await processAllSequenceGeneration();
-    await processAllSending();
-    await checkAllReplies();
+    try {
+      researchProcessed = await processAllResearch();
+    } catch (error: any) {
+      errors.push(`Research: ${error.message}`);
+      console.error('❌ Error in research:', error);
+    }
+
+    try {
+      sequencesGenerated = await processAllSequenceGeneration();
+    } catch (error: any) {
+      errors.push(`Sequences: ${error.message}`);
+      console.error('❌ Error in sequences:', error);
+    }
+
+    try {
+      emailsSent = await processAllSending();
+    } catch (error: any) {
+      errors.push(`Sending: ${error.message}`);
+      console.error('❌ Error in sending:', error);
+    }
+
+    try {
+      repliesFound = await checkAllReplies();
+    } catch (error: any) {
+      errors.push(`Replies: ${error.message}`);
+      console.error('❌ Error checking replies:', error);
+    }
 
     const stats = gmailService.getRateLimitStats();
     console.log('\n📊 Rate Limit Stats:');
@@ -615,8 +650,24 @@ export async function processAll(): Promise<void> {
     console.log('\n' + '='.repeat(60));
     console.log('✅ PROCESS CYCLE COMPLETE');
     console.log('='.repeat(60) + '\n');
-  } catch (error) {
+
+    return {
+      researchProcessed,
+      sequencesGenerated,
+      emailsSent,
+      repliesFound,
+      errors,
+    };
+  } catch (error: any) {
     console.error('❌ Error in processAll:', error);
+    errors.push(`Fatal: ${error.message}`);
+    return {
+      researchProcessed,
+      sequencesGenerated,
+      emailsSent,
+      repliesFound,
+      errors,
+    };
   }
 }
 

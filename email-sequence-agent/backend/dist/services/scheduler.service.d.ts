@@ -1,6 +1,12 @@
 export declare function startScheduler(): void;
 export declare function stopScheduler(): void;
-export declare function runNow(): Promise<void>;
+export declare function runNow(): Promise<{
+    researchProcessed: number;
+    sequencesGenerated: number;
+    emailsSent: number;
+    repliesFound: number;
+    errors: string[];
+}>;
 export declare function getStatus(): {
     running: boolean;
     isProcessing: boolean;

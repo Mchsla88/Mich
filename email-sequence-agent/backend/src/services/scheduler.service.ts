@@ -62,19 +62,39 @@ export function stopScheduler(): void {
 }
 
 // Run immediately (manual trigger)
-export async function runNow(): Promise<void> {
+export async function runNow(): Promise<{
+  researchProcessed: number;
+  sequencesGenerated: number;
+  emailsSent: number;
+  repliesFound: number;
+  errors: string[];
+}> {
   if (isRunning) {
     console.log('⏳ A run is already in progress');
-    return;
+    return {
+      researchProcessed: 0,
+      sequencesGenerated: 0,
+      emailsSent: 0,
+      repliesFound: 0,
+      errors: ['Process already running'],
+    };
   }
 
   console.log('▶️  Manual run triggered');
   isRunning = true;
 
   try {
-    await processorService.processAll();
-  } catch (error) {
+    const results = await processorService.processAll();
+    return results;
+  } catch (error: any) {
     console.error('❌ Error in manual run:', error);
+    return {
+      researchProcessed: 0,
+      sequencesGenerated: 0,
+      emailsSent: 0,
+      repliesFound: 0,
+      errors: [error.message || 'Unknown error'],
+    };
   } finally {
     isRunning = false;
   }
