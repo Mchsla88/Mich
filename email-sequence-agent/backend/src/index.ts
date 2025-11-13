@@ -853,58 +853,58 @@ app.get('/', (req: Request, res: Response) => {
           </li>
 
           <li><strong>Utwórz nowy projekt:</strong><br>
-            • Kliknij "Select a project" (góra strony)<br>
-            • Kliknij "NEW PROJECT"<br>
+            • Kliknij "Wybierz projekt" (góra strony)<br>
+            • Kliknij "NOWY PROJEKT"<br>
             • Nazwa: np. "Email-Agent"<br>
-            • Kliknij "CREATE"<br>
+            • Kliknij "UTWÓRZ"<br>
             • Poczekaj aż projekt się utworzy (może zająć minutę)
           </li>
 
           <li><strong>Włącz Gmail API:</strong><br>
-            • W menu bocznym: "APIs & Services" → "Library"<br>
+            • W menu bocznym: "Interfejsy API i usługi" → "Biblioteka"<br>
             • Wyszukaj: "Gmail API"<br>
             • Kliknij na Gmail API<br>
-            • Kliknij "ENABLE" (niebieska przycisk)<br>
+            • Kliknij "WŁĄCZ" (niebieski przycisk)<br>
             • Poczekaj na włączenie
           </li>
 
           <li><strong>Włącz Google Sheets API:</strong><br>
-            • Wróć do Library<br>
+            • Wróć do Biblioteki<br>
             • Wyszukaj: "Google Sheets API"<br>
             • Kliknij na Google Sheets API<br>
-            • Kliknij "ENABLE"
+            • Kliknij "WŁĄCZ"
           </li>
 
-          <li><strong>Utwórz Service Account:</strong><br>
-            • W menu bocznym: "APIs & Services" → "Credentials"<br>
-            • Kliknij "CREATE CREDENTIALS" (góra strony)<br>
-            • Wybierz "Service Account"<br>
+          <li><strong>Utwórz Konto usługi (Service Account):</strong><br>
+            • W menu bocznym: "Interfejsy API i usługi" → "Dane logowania"<br>
+            • Kliknij "UTWÓRZ DANE LOGOWANIA" (góra strony)<br>
+            • Wybierz "Konto usługi"<br>
             • Wypełnij formularz:<br>
-            &nbsp;&nbsp;- Service account name: "email-agent"<br>
-            &nbsp;&nbsp;- Service account ID: automatycznie<br>
-            &nbsp;&nbsp;- Description: "Email automation agent"<br>
-            • Kliknij "CREATE AND CONTINUE"<br>
-            • Role: wybierz "Owner" (najprostsze)<br>
-            • Kliknij "CONTINUE"<br>
-            • Kliknij "DONE"
+            &nbsp;&nbsp;- Nazwa konta usługi: "email-agent"<br>
+            &nbsp;&nbsp;- ID konta usługi: automatycznie<br>
+            &nbsp;&nbsp;- Opis: "Email automation agent"<br>
+            • Kliknij "UTWÓRZ I KONTYNUUJ"<br>
+            • Rola: wybierz "Właściciel" (najprostsze)<br>
+            • Kliknij "KONTYNUUJ"<br>
+            • Kliknij "GOTOWE"
           </li>
 
           <li><strong>⭐ Pobierz plik JSON (NAJWAŻNIEJSZE!):</strong><br>
-            • Na liście Service Accounts znajdź swoje konto (email-agent@...)<br>
-            • Kliknij na email Service Account<br>
-            • Przejdź do zakładki "KEYS"<br>
-            • Kliknij "ADD KEY" → "Create new key"<br>
+            • Na liście Kont usług znajdź swoje konto (email-agent@...)<br>
+            • Kliknij na email konta usługi<br>
+            • Przejdź do zakładki "KLUCZE"<br>
+            • Kliknij "DODAJ KLUCZ" → "Utwórz nowy klucz"<br>
             • Wybierz "JSON"<br>
-            • Kliknij "CREATE"<br>
+            • Kliknij "UTWÓRZ"<br>
             <strong style="color: #dc3545;">→ Plik JSON zostanie pobrany na Twój komputer!</strong><br>
             <strong>→ Zapisz go w bezpiecznym miejscu!</strong>
           </li>
 
-          <li><strong>Włącz Domain-Wide Delegation (dla Gmail):</strong><br>
-            • Wróć do listy Service Accounts<br>
+          <li><strong>Włącz delegowanie w całej domenie (dla Gmail):</strong><br>
+            • Wróć do listy Kont usług<br>
             • Kliknij na swoje konto<br>
-            • Zaznacz checkbox "Enable G Suite Domain-wide Delegation"<br>
-            • Kliknij "SAVE"
+            • Zaznacz checkbox "Włącz delegowanie w całej domenie G Suite"<br>
+            • Kliknij "ZAPISZ"
           </li>
         </ol>
 
