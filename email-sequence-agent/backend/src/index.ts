@@ -136,16 +136,15 @@ async function initialize() {
 // ======================
 
 // Start OAuth flow - redirect to Google
-app.get(
-  '/auth/google',
-  (req: Request, res: Response, next) => {
-    // Store spreadsheet ID in session to link tokens after callback
-    const spreadsheetId = req.query.spreadsheetId as string;
-    if (spreadsheetId) {
-      (req.session as any).pendingSpreadsheetId = spreadsheetId;
-    }
-    next();
-  },
+app.get('/auth/google', (req: Request, res: Response, next) => {
+  const spreadsheetId = req.query.spreadsheetId as string;
+
+  if (!spreadsheetId) {
+    return res.status(400).send('Missing spreadsheetId parameter');
+  }
+
+  // Use OAuth state parameter to pass spreadsheetId through the OAuth flow
+  // This is more reliable than sessions for OAuth flows
   passport.authenticate('google', {
     scope: [
       'profile',
@@ -156,8 +155,9 @@ app.get(
     ],
     accessType: 'offline',
     prompt: 'consent', // Force consent to get refresh token
-  })
-);
+    state: spreadsheetId, // Pass spreadsheetId via OAuth state parameter
+  })(req, res, next);
+});
 
 // OAuth callback - Google redirects here after user authorizes
 app.get(
@@ -166,7 +166,8 @@ app.get(
   async (req: Request, res: Response) => {
     try {
       const user = req.user as any;
-      const spreadsheetId = (req.session as any).pendingSpreadsheetId;
+      // Get spreadsheetId from OAuth state parameter (passed back from Google)
+      const spreadsheetId = req.query.state as string;
 
       if (!spreadsheetId) {
         return res.send(`
@@ -201,9 +202,6 @@ app.get(
         googleTokenExpiry: Date.now() + 3600 * 1000, // 1 hour
         senderEmail: user.profile.emails?.[0]?.value || spreadsheet.senderEmail,
       });
-
-      // Clear session
-      delete (req.session as any).pendingSpreadsheetId;
 
       // Success page with auto-close
       res.send(`
