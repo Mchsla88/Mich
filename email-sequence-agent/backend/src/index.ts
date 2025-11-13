@@ -1,4 +1,7 @@
 import express, { Request, Response } from 'express';
+import session from 'express-session';
+import passport from 'passport';
+import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import config, { updateConfig, getConfig } from './config.js';
 import * as sheetsService from './services/sheets.service.js';
 import * as gmailService from './services/gmail.service.js';
@@ -11,6 +14,54 @@ const app = express();
 
 // Middleware
 app.use(express.json());
+
+// Session middleware (required for OAuth)
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'your-secret-key-change-in-production',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: false, // set to true if using HTTPS
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    },
+  })
+);
+
+// Initialize Passport
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Passport serialization
+passport.serializeUser((user: any, done) => {
+  done(null, user);
+});
+
+passport.deserializeUser((user: any, done) => {
+  done(null, user);
+});
+
+// Configure Google OAuth Strategy
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  passport.use(
+    new GoogleStrategy(
+      {
+        clientID: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        callbackURL: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3002/auth/google/callback',
+      },
+      (accessToken, refreshToken, profile, done) => {
+        // Return user data with tokens
+        const userData = {
+          profile,
+          accessToken,
+          refreshToken,
+        };
+        return done(null, userData);
+      }
+    )
+  );
+}
 
 // CORS
 app.use((req, res, next) => {
@@ -51,6 +102,146 @@ async function initialize() {
 
   console.log('✅ Server initialization complete!\n');
 }
+
+// ======================
+// OAUTH ENDPOINTS
+// ======================
+
+// Start OAuth flow - redirect to Google
+app.get(
+  '/auth/google',
+  (req: Request, res: Response, next) => {
+    // Store spreadsheet ID in session to link tokens after callback
+    const spreadsheetId = req.query.spreadsheetId as string;
+    if (spreadsheetId) {
+      (req.session as any).pendingSpreadsheetId = spreadsheetId;
+    }
+    next();
+  },
+  passport.authenticate('google', {
+    scope: [
+      'profile',
+      'email',
+      'https://www.googleapis.com/auth/gmail.send',
+      'https://www.googleapis.com/auth/gmail.readonly',
+      'https://www.googleapis.com/auth/spreadsheets',
+    ],
+    accessType: 'offline',
+    prompt: 'consent', // Force consent to get refresh token
+  })
+);
+
+// OAuth callback - Google redirects here after user authorizes
+app.get(
+  '/auth/google/callback',
+  passport.authenticate('google', { failureRedirect: '/' }),
+  async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const spreadsheetId = (req.session as any).pendingSpreadsheetId;
+
+      if (!spreadsheetId) {
+        return res.send(`
+          <html>
+            <body>
+              <h1>❌ Błąd</h1>
+              <p>Brak ID arkusza. Spróbuj ponownie z dashboardu.</p>
+              <a href="/">Wróć do dashboardu</a>
+            </body>
+          </html>
+        `);
+      }
+
+      // Save tokens to spreadsheet config
+      const spreadsheet = await spreadsheetStorage.getSpreadsheet(spreadsheetId);
+      if (!spreadsheet) {
+        return res.send(`
+          <html>
+            <body>
+              <h1>❌ Błąd</h1>
+              <p>Nie znaleziono kampanii o ID: ${spreadsheetId}</p>
+              <a href="/">Wróć do dashboardu</a>
+            </body>
+          </html>
+        `);
+      }
+
+      // Update spreadsheet with OAuth tokens
+      await spreadsheetStorage.updateSpreadsheet(spreadsheetId, {
+        googleAccessToken: user.accessToken,
+        googleRefreshToken: user.refreshToken,
+        googleTokenExpiry: Date.now() + 3600 * 1000, // 1 hour
+        senderEmail: user.profile.emails?.[0]?.value || spreadsheet.senderEmail,
+      });
+
+      // Clear session
+      delete (req.session as any).pendingSpreadsheetId;
+
+      // Success page with auto-close
+      res.send(`
+        <html>
+          <head>
+            <style>
+              body { font-family: Arial; text-align: center; padding: 50px; }
+              .success { color: #28a745; font-size: 24px; }
+              .info { color: #666; margin-top: 20px; }
+            </style>
+          </head>
+          <body>
+            <div class="success">✅ Autoryzacja zakończona pomyślnie!</div>
+            <p class="info">Konto Google zostało połączone z kampanią.</p>
+            <p class="info">Email: <strong>${user.profile.emails?.[0]?.value}</strong></p>
+            <p class="info">To okno zamknie się automatycznie za 3 sekundy...</p>
+            <script>
+              setTimeout(() => {
+                window.close();
+                window.location.href = '/';
+              }, 3000);
+            </script>
+            <a href="/">Wróć do dashboardu</a>
+          </body>
+        </html>
+      `);
+    } catch (error: any) {
+      console.error('OAuth callback error:', error);
+      res.send(`
+        <html>
+          <body>
+            <h1>❌ Błąd autoryzacji</h1>
+            <p>${error.message}</p>
+            <a href="/">Wróć do dashboardu</a>
+          </body>
+        </html>
+      `);
+    }
+  }
+);
+
+// Check OAuth status for a spreadsheet
+app.get('/api/auth/status/:spreadsheetId', async (req: Request, res: Response) => {
+  try {
+    const { spreadsheetId } = req.params;
+    const spreadsheet = await spreadsheetStorage.getSpreadsheet(spreadsheetId);
+
+    if (!spreadsheet) {
+      return res.status(404).json({ success: false, error: 'Spreadsheet not found' });
+    }
+
+    const hasAuth = !!(spreadsheet.googleAccessToken && spreadsheet.googleRefreshToken);
+    const isExpired = spreadsheet.googleTokenExpiry
+      ? Date.now() > spreadsheet.googleTokenExpiry
+      : true;
+
+    res.json({
+      success: true,
+      hasAuth,
+      isExpired,
+      email: spreadsheet.senderEmail,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 // ======================
 // API ENDPOINTS
@@ -1205,11 +1396,11 @@ app.get('/', (req: Request, res: Response) => {
           <small style="color: #666;">Opcjonalne - dedykowany klucz API. Jeśli puste, użyje globalnego.</small>
         </div>
 
-        <div class="form-group">
-          <label for="newCredentialsFile">Google Credentials JSON</label>
-          <input type="file" id="newCredentialsFile" accept=".json" onchange="handleCredentialsFileSelect(event)" />
-          <small style="color: #666;">Opcjonalne - dedykowany plik credentials dla tego konta Google.</small>
-          <div id="credentialsFileStatus" style="margin-top: 8px; font-size: 13px;"></div>
+        <div style="background: #e3f2fd; padding: 15px; border-radius: 6px; border-left: 4px solid #2196f3; margin: 15px 0;">
+          <strong style="color: #1976d2;">ℹ️ Autoryzacja Google:</strong>
+          <p style="margin: 8px 0 0 0; color: #555;">
+            Po dodaniu arkusza, kliknij przycisk <strong>"🔐 Połącz konto Google"</strong> aby autoryzować dostęp do Gmail i Google Sheets.
+          </p>
         </div>
 
         <div>
@@ -1402,7 +1593,13 @@ app.get('/', (req: Request, res: Response) => {
             return;
           }
 
-          listDiv.innerHTML = data.spreadsheets.map(s => \`
+          listDiv.innerHTML = data.spreadsheets.map(s => {
+            const hasAuth = !!(s.googleAccessToken && s.googleRefreshToken);
+            const authBadge = hasAuth
+              ? '<span style="background: #28a745; color: white; padding: 3px 8px; border-radius: 3px; font-size: 12px; margin-left: 8px;">🔐 Połączono z Google</span>'
+              : '<span style="background: #dc3545; color: white; padding: 3px 8px; border-radius: 3px; font-size: 12px; margin-left: 8px;">⚠️ Wymaga autoryzacji</span>';
+
+            return \`
             <div style="padding: 15px; background: white; border-radius: 6px; margin-bottom: 10px; border: 1px solid #ddd;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
@@ -1410,6 +1607,7 @@ app.get('/', (req: Request, res: Response) => {
                   <span class="badge \${s.active ? 'active' : 'inactive'}" style="margin-left: 10px;">
                     \${s.active ? '✓ Aktywny' : '✗ Nieaktywny'}
                   </span>
+                  \${authBadge}
                   <div style="margin-top: 8px; font-size: 14px; color: #666;">
                     📧 <strong>\${s.senderName}</strong> &lt;\${s.senderEmail}&gt;<br>
                     📊 Sheet: <code>\${s.sheetName}</code><br>
@@ -1418,20 +1616,28 @@ app.get('/', (req: Request, res: Response) => {
                     🆔 ID: <code style="font-size: 11px;">\${s.spreadsheetId}</code>
                   </div>
                 </div>
-                <div>
-                  <button onclick="editSpreadsheet('\${s.id}')" style="padding: 8px 16px; margin: 2px; background: #28a745;">
-                    ✏️ Edytuj
-                  </button>
-                  <button onclick="toggleSpreadsheet('\${s.id}')" style="padding: 8px 16px; margin: 2px;">
-                    \${s.active ? '⏸️ Dezaktywuj' : '▶️ Aktywuj'}
-                  </button>
-                  <button onclick="deleteSpreadsheet('\${s.id}')" class="danger" style="padding: 8px 16px; margin: 2px;">
-                    🗑️ Usuń
-                  </button>
+                <div style="display: flex; flex-direction: column; gap: 5px;">
+                  <div>
+                    <button onclick="editSpreadsheet('\${s.id}')" style="padding: 8px 16px; margin: 2px; background: #28a745;">
+                      ✏️ Edytuj
+                    </button>
+                    <button onclick="toggleSpreadsheet('\${s.id}')" style="padding: 8px 16px; margin: 2px;">
+                      \${s.active ? '⏸️ Dezaktywuj' : '▶️ Aktywuj'}
+                    </button>
+                    <button onclick="deleteSpreadsheet('\${s.id}')" class="danger" style="padding: 8px 16px; margin: 2px;">
+                      🗑️ Usuń
+                    </button>
+                  </div>
+                  <div>
+                    <button onclick="connectGoogleAccount('\${s.id}')" style="padding: 8px 16px; margin: 2px; background: #4285f4; color: white; width: 100%;">
+                      \${hasAuth ? '🔄 Odnów połączenie' : '🔐 Połącz konto Google'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          \`).join('');
+          \`;
+          }).join('');
         }
       } catch (error) {
         console.error('Error loading spreadsheets:', error);
@@ -1443,7 +1649,6 @@ app.get('/', (req: Request, res: Response) => {
     }
 
     // Global variables for file uploads
-    let selectedCredentialsFile = null;
     let editingSpreadsheetId = null; // For edit mode
 
     function handleSignatureFileSelect(event) {
@@ -1466,48 +1671,6 @@ app.get('/', (req: Request, res: Response) => {
         const content = e.target.result;
         signatureTextarea.value = content;
         statusDiv.innerHTML = '<span style="color: green;">✅ ' + file.name + ' załadowany</span>';
-      };
-      reader.readAsText(file);
-    }
-
-    function handleCredentialsFileSelect(event) {
-      const file = event.target.files[0];
-      const statusDiv = document.getElementById('credentialsFileStatus');
-
-      if (!file) {
-        selectedCredentialsFile = null;
-        statusDiv.innerHTML = '';
-        return;
-      }
-
-      if (!file.name.endsWith('.json')) {
-        statusDiv.innerHTML = '<span style="color: red;">❌ Plik musi być w formacie JSON</span>';
-        selectedCredentialsFile = null;
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        try {
-          const content = e.target.result;
-          const jsonContent = JSON.parse(content);
-
-          if (jsonContent.type !== 'service_account') {
-            statusDiv.innerHTML = '<span style="color: red;">❌ Nieprawidłowy plik - wymagany Service Account JSON</span>';
-            selectedCredentialsFile = null;
-            return;
-          }
-
-          selectedCredentialsFile = {
-            fileName: file.name,
-            content: btoa(content) // Convert to base64
-          };
-
-          statusDiv.innerHTML = '<span style="color: green;">✅ ' + file.name + '</span>';
-        } catch (error) {
-          statusDiv.innerHTML = '<span style="color: red;">❌ Błąd odczytu pliku JSON</span>';
-          selectedCredentialsFile = null;
-        }
       };
       reader.readAsText(file);
     }
@@ -1538,9 +1701,6 @@ app.get('/', (req: Request, res: Response) => {
       document.getElementById('newLimitPerHour').value = '';
       document.getElementById('newLimitPerDay').value = '';
       document.getElementById('newAiApiKey').value = '';
-      document.getElementById('newCredentialsFile').value = '';
-      document.getElementById('credentialsFileStatus').innerHTML = '';
-      selectedCredentialsFile = null;
       document.querySelector('input[name="aiProvider"][value="anthropic"]').checked = true;
 
       // Update button text
@@ -1618,38 +1778,6 @@ app.get('/', (req: Request, res: Response) => {
       }
 
       try {
-        let credentialsFileName = null;
-
-        // Upload credentials file if selected (only for new spreadsheets or if file changed)
-        if (selectedCredentialsFile) {
-          try {
-            const uploadResponse = await fetch('/api/credentials/upload', {
-              method: 'POST',
-              headers: {'Content-Type': 'application/json'},
-              body: JSON.stringify({
-                spreadsheetId: spreadsheetId,
-                fileName: selectedCredentialsFile.fileName,
-                fileContent: selectedCredentialsFile.content
-              })
-            });
-
-            const uploadData = await uploadResponse.json();
-
-            if (uploadData.success) {
-              credentialsFileName = uploadData.fileName;
-              console.log('✅ Credentials uploaded:', credentialsFileName);
-            } else {
-              errorDiv.textContent = 'Błąd uploadu credentials: ' + uploadData.error;
-              errorDiv.style.display = 'block';
-              return;
-            }
-          } catch (uploadError) {
-            errorDiv.textContent = 'Błąd uploadu credentials: ' + uploadError.message;
-            errorDiv.style.display = 'block';
-            return;
-          }
-        }
-
         const payload = {
           spreadsheetId,
           sheetName,
@@ -1667,9 +1795,6 @@ app.get('/', (req: Request, res: Response) => {
         }
         if (aiApiKey && aiApiKey !== '••••••••') {
           payload.aiApiKey = aiApiKey;
-        }
-        if (credentialsFileName) {
-          payload.credentialsFileName = credentialsFileName;
         }
         if (limitPerHour) {
           payload.limitPerHour = parseInt(limitPerHour, 10);
@@ -1742,6 +1867,31 @@ app.get('/', (req: Request, res: Response) => {
       } catch (error) {
         alert('Błąd połączenia: ' + error.message);
       }
+    }
+
+    function connectGoogleAccount(spreadsheetId) {
+      // Open OAuth flow in popup window
+      const width = 600;
+      const height = 700;
+      const left = (screen.width - width) / 2;
+      const top = (screen.height - height) / 2;
+
+      const authWindow = window.open(
+        \`/auth/google?spreadsheetId=\${spreadsheetId}\`,
+        'Google Authorization',
+        \`width=\${width},height=\${height},left=\${left},top=\${top}\`
+      );
+
+      // Poll for window close to refresh spreadsheet list
+      const checkWindow = setInterval(() => {
+        if (authWindow.closed) {
+          clearInterval(checkWindow);
+          console.log('Authorization window closed, refreshing list...');
+          setTimeout(() => {
+            loadSpreadsheets();
+          }, 1000);
+        }
+      }, 500);
     }
 
     // Load spreadsheets on page load

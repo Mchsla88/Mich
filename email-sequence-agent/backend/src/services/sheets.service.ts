@@ -1,32 +1,39 @@
 import { google } from 'googleapis';
+import { OAuth2Client } from 'google-auth-library';
 import { Lead, LeadStatus } from '../types.js';
 import config from '../config.js';
 
-const sheets = google.sheets('v4');
+// Create Sheets client with OAuth tokens
+function createSheetsClient(accessToken: string, refreshToken?: string) {
+  const oauth2Client = new OAuth2Client(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3002/auth/google/callback'
+  );
 
-// Initialize Google Auth
-let auth: any;
+  // Set credentials
+  oauth2Client.setCredentials({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
 
+  // Auto-refresh tokens when expired
+  oauth2Client.on('tokens', (tokens) => {
+    if (tokens.refresh_token) {
+      console.log('🔄 New refresh token received (Sheets)');
+    }
+    if (tokens.access_token) {
+      console.log('🔄 Access token refreshed (Sheets)');
+    }
+  });
+
+  return google.sheets({ version: 'v4', auth: oauth2Client });
+}
+
+// Legacy function for backward compatibility (no longer used with OAuth)
 export async function initGoogleAuth() {
-  try {
-    auth = new google.auth.GoogleAuth({
-      keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS,
-      scopes: [
-        'https://www.googleapis.com/auth/spreadsheets',
-        'https://www.googleapis.com/auth/gmail.send',
-        'https://www.googleapis.com/auth/gmail.modify',
-      ],
-    });
-
-    const authClient = await auth.getClient();
-    google.options({ auth: authClient });
-
-    console.log('✅ Google Auth initialized');
-    return authClient;
-  } catch (error) {
-    console.error('❌ Failed to initialize Google Auth:', error);
-    throw error;
-  }
+  console.log('⚠️  initGoogleAuth() is deprecated - using OAuth 2.0 instead');
+  return null;
 }
 
 // Column mapping (A=0, B=1, etc.)
@@ -226,8 +233,14 @@ export async function updateLeadFields(
 // ======================
 
 // Read leads from specific spreadsheet
-export async function getLeadsFrom(spreadsheetId: string, sheetName: string): Promise<Lead[]> {
+export async function getLeadsFrom(
+  spreadsheetId: string,
+  sheetName: string,
+  accessToken: string,
+  refreshToken: string
+): Promise<Lead[]> {
   try {
+    const sheets = createSheetsClient(accessToken, refreshToken);
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range: `${sheetName}!A2:Z`,
@@ -271,8 +284,13 @@ export async function getLeadsFrom(spreadsheetId: string, sheetName: string): Pr
 }
 
 // Get leads to process from specific spreadsheet
-export async function getLeadsToProcessFrom(spreadsheetId: string, sheetName: string): Promise<Lead[]> {
-  const allLeads = await getLeadsFrom(spreadsheetId, sheetName);
+export async function getLeadsToProcessFrom(
+  spreadsheetId: string,
+  sheetName: string,
+  accessToken: string,
+  refreshToken: string
+): Promise<Lead[]> {
+  const allLeads = await getLeadsFrom(spreadsheetId, sheetName, accessToken, refreshToken);
   return allLeads.filter(lead =>
     lead.generuj === true &&
     lead.status !== 'odpowiedź' &&
@@ -285,9 +303,13 @@ export async function updateLeadFieldsIn(
   spreadsheetId: string,
   sheetName: string,
   rowIndex: number,
-  updates: Partial<Lead>
+  updates: Partial<Lead>,
+  accessToken: string,
+  refreshToken: string
 ): Promise<void> {
   try {
+    const sheets = createSheetsClient(accessToken, refreshToken);
+
     // Read current lead
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,

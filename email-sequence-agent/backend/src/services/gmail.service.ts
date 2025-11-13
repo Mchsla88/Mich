@@ -1,18 +1,33 @@
 import { google } from 'googleapis';
+import { OAuth2Client } from 'google-auth-library';
 import { GmailSendResult, RateLimiterState } from '../types.js';
 import config from '../config.js';
 
-// Lazy initialization of Gmail client
-function getGmailClient() {
-  const auth = new google.auth.GoogleAuth({
-    keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS,
-    scopes: [
-      'https://www.googleapis.com/auth/gmail.send',
-      'https://www.googleapis.com/auth/gmail.readonly',
-    ],
+// Create Gmail client with OAuth tokens
+function getGmailClient(accessToken: string, refreshToken?: string) {
+  const oauth2Client = new OAuth2Client(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3002/auth/google/callback'
+  );
+
+  // Set credentials
+  oauth2Client.setCredentials({
+    access_token: accessToken,
+    refresh_token: refreshToken,
   });
 
-  return google.gmail({ version: 'v3', auth });
+  // Auto-refresh tokens when expired
+  oauth2Client.on('tokens', (tokens) => {
+    if (tokens.refresh_token) {
+      console.log('🔄 New refresh token received');
+    }
+    if (tokens.access_token) {
+      console.log('🔄 Access token refreshed');
+    }
+  });
+
+  return google.gmail({ version: 'v3', auth: oauth2Client });
 }
 
 // Rate limiter state
@@ -143,6 +158,8 @@ export async function sendEmail(
   to: string,
   subject: string,
   bodyHtml: string,
+  accessToken: string,
+  refreshToken: string,
   options: {
     threadId?: string;
     inReplyTo?: string;
@@ -150,6 +167,14 @@ export async function sendEmail(
   } = {}
 ): Promise<GmailSendResult> {
   try {
+    // Validate tokens
+    if (!accessToken || !refreshToken) {
+      return {
+        success: false,
+        error: 'Missing OAuth tokens - please authorize with Google first',
+      };
+    }
+
     // Check if within sending hours
     if (!isWithinSendingHours()) {
       return {
@@ -186,8 +211,8 @@ export async function sendEmail(
 
     const encodedEmail = encodeEmail(emailMessage);
 
-    // Send via Gmail API
-    const gmail = getGmailClient();
+    // Send via Gmail API with OAuth tokens
+    const gmail = getGmailClient(accessToken, refreshToken);
     const response = await gmail.users.messages.send({
       userId: 'me',
       requestBody: {
@@ -218,11 +243,13 @@ export async function sendEmail(
 // Check for replies to a specific message
 export async function checkForReplies(
   messageId: string,
-  threadId: string
+  threadId: string,
+  accessToken: string,
+  refreshToken: string
 ): Promise<boolean> {
   try {
     // Get thread
-    const gmail = getGmailClient();
+    const gmail = getGmailClient(accessToken, refreshToken);
     const thread = await gmail.users.threads.get({
       userId: 'me',
       id: threadId,
@@ -247,10 +274,12 @@ export async function checkForReplies(
 
 // Search for threads by recipient email
 export async function searchThreadsByEmail(
-  email: string
+  email: string,
+  accessToken: string,
+  refreshToken: string
 ): Promise<string[]> {
   try {
-    const gmail = getGmailClient();
+    const gmail = getGmailClient(accessToken, refreshToken);
     const response = await gmail.users.threads.list({
       userId: 'me',
       q: `to:${email}`,
@@ -266,12 +295,14 @@ export async function searchThreadsByEmail(
 
 // Check all threads for replies
 export async function checkAllReplies(
-  emailThreadPairs: Array<{ email: string; threadId: string; messageId: string }>
+  emailThreadPairs: Array<{ email: string; threadId: string; messageId: string }>,
+  accessToken: string,
+  refreshToken: string
 ): Promise<Array<{ email: string; hasReply: boolean }>> {
   const results: Array<{ email: string; hasReply: boolean }> = [];
 
   for (const pair of emailThreadPairs) {
-    const hasReply = await checkForReplies(pair.messageId, pair.threadId);
+    const hasReply = await checkForReplies(pair.messageId, pair.threadId, accessToken, refreshToken);
     results.push({
       email: pair.email,
       hasReply,

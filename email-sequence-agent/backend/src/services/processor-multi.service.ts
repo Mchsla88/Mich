@@ -41,9 +41,17 @@ export async function processAllResearch(): Promise<number> {
 // Process research for specific spreadsheet
 async function processResearchForSpreadsheet(spreadsheet: SpreadsheetConfig): Promise<number> {
   try {
+    // Validate OAuth tokens
+    if (!spreadsheet.googleAccessToken || !spreadsheet.googleRefreshToken) {
+      console.log(`  ⚠️  Skipping ${spreadsheet.name} - missing OAuth tokens. Please authorize with Google.`);
+      return 0;
+    }
+
     const leads = await sheetsService.getLeadsToProcessFrom(
       spreadsheet.spreadsheetId,
-      spreadsheet.sheetName
+      spreadsheet.sheetName,
+      spreadsheet.googleAccessToken,
+      spreadsheet.googleRefreshToken
     );
 
     const leadsNeedingResearch = leads.filter(
@@ -68,7 +76,9 @@ async function processResearchForSpreadsheet(spreadsheet: SpreadsheetConfig): Pr
           spreadsheet.spreadsheetId,
           spreadsheet.sheetName,
           lead.rowIndex,
-          { status: 'research' }
+          { status: 'research' },
+          spreadsheet.googleAccessToken,
+          spreadsheet.googleRefreshToken
         );
 
         // Perform research using configured AI provider
@@ -100,7 +110,9 @@ async function processResearchForSpreadsheet(spreadsheet: SpreadsheetConfig): Pr
             research_notes: JSON.stringify(researchResult),
             research_sources: researchResult.sources.join(', '),
             research_date: new Date().toISOString(),
-          }
+          },
+          spreadsheet.googleAccessToken,
+          spreadsheet.googleRefreshToken
         );
 
         console.log(`  ✅ Research completed for ${lead.firma}`);
@@ -151,9 +163,17 @@ export async function processAllSequenceGeneration(): Promise<number> {
 // Process sequence generation for specific spreadsheet
 async function processSequenceForSpreadsheet(spreadsheet: SpreadsheetConfig): Promise<number> {
   try {
+    // Validate OAuth tokens
+    if (!spreadsheet.googleAccessToken || !spreadsheet.googleRefreshToken) {
+      console.log(`  ⚠️  Skipping ${spreadsheet.name} - missing OAuth tokens. Please authorize with Google.`);
+      return 0;
+    }
+
     const leads = await sheetsService.getLeadsToProcessFrom(
       spreadsheet.spreadsheetId,
-      spreadsheet.sheetName
+      spreadsheet.sheetName,
+      spreadsheet.googleAccessToken,
+      spreadsheet.googleRefreshToken
     );
 
     const leadsNeedingSequence = leads.filter(
@@ -218,7 +238,9 @@ async function processSequenceForSpreadsheet(spreadsheet: SpreadsheetConfig): Pr
             step2_body: sequence.steps[1].body_html,
             step3_subject: sequence.steps[2].subject,
             step3_body: sequence.steps[2].body_html,
-          }
+          },
+          spreadsheet.googleAccessToken,
+          spreadsheet.googleRefreshToken
         );
 
         console.log(`  ✅ Sequence generated for ${lead.firma}`);
@@ -269,9 +291,17 @@ export async function processAllSending(): Promise<number> {
 // Process sending for specific spreadsheet (with custom sender)
 async function processSendingForSpreadsheet(spreadsheet: SpreadsheetConfig): Promise<number> {
   try {
+    // Validate OAuth tokens
+    if (!spreadsheet.googleAccessToken || !spreadsheet.googleRefreshToken) {
+      console.log(`  ⚠️  Skipping ${spreadsheet.name} - missing OAuth tokens. Please authorize with Google.`);
+      return 0;
+    }
+
     const leads = await sheetsService.getLeadsToProcessFrom(
       spreadsheet.spreadsheetId,
-      spreadsheet.sheetName
+      spreadsheet.sheetName,
+      spreadsheet.googleAccessToken,
+      spreadsheet.googleRefreshToken
     );
 
     const now = new Date();
@@ -305,7 +335,9 @@ async function processSendingForSpreadsheet(spreadsheet: SpreadsheetConfig): Pro
           const result = await gmailService.sendEmail(
             lead.email,
             lead.step1_subject!,
-            lead.step1_body!
+            lead.step1_body!,
+            spreadsheet.googleAccessToken,
+            spreadsheet.googleRefreshToken
           );
 
           // Restore original config
@@ -323,7 +355,9 @@ async function processSendingForSpreadsheet(spreadsheet: SpreadsheetConfig): Pro
                 status: 'wysłane',
                 step1_sent_date: now.toISOString(),
                 step1_message_id: result.messageId,
-              }
+              },
+              spreadsheet.googleAccessToken,
+              spreadsheet.googleRefreshToken
             );
             sent++;
             console.log(`  ✅ Step 1 sent to ${lead.email}`);
@@ -356,6 +390,8 @@ async function processSendingForSpreadsheet(spreadsheet: SpreadsheetConfig): Pro
               lead.email,
               lead.step2_subject!,
               lead.step2_body!,
+              spreadsheet.googleAccessToken,
+              spreadsheet.googleRefreshToken,
               {
                 threadId: config.useEmailThreads ? lead.step1_message_id : undefined,
                 inReplyTo: config.useEmailThreads ? lead.step1_message_id : undefined,
@@ -375,7 +411,9 @@ async function processSendingForSpreadsheet(spreadsheet: SpreadsheetConfig): Pro
                 {
                   step2_sent_date: now.toISOString(),
                   step2_message_id: result.messageId,
-                }
+                },
+                spreadsheet.googleAccessToken,
+                spreadsheet.googleRefreshToken
               );
               sent++;
               console.log(`  ✅ Step 2 sent to ${lead.email}`);
@@ -405,6 +443,8 @@ async function processSendingForSpreadsheet(spreadsheet: SpreadsheetConfig): Pro
               lead.email,
               lead.step3_subject!,
               lead.step3_body!,
+              spreadsheet.googleAccessToken,
+              spreadsheet.googleRefreshToken,
               {
                 threadId: config.useEmailThreads ? lead.step1_message_id : undefined,
                 inReplyTo: config.useEmailThreads ? lead.step1_message_id : undefined,
@@ -425,7 +465,9 @@ async function processSendingForSpreadsheet(spreadsheet: SpreadsheetConfig): Pro
                   status: 'zakończone',
                   step3_sent_date: now.toISOString(),
                   step3_message_id: result.messageId,
-                }
+                },
+                spreadsheet.googleAccessToken,
+                spreadsheet.googleRefreshToken
               );
               sent++;
               console.log(`  ✅ Step 3 sent - Sequence complete!`);
@@ -476,9 +518,17 @@ export async function checkAllReplies(): Promise<number> {
 // Check replies for specific spreadsheet
 async function checkRepliesForSpreadsheet(spreadsheet: SpreadsheetConfig): Promise<number> {
   try {
+    // Validate OAuth tokens
+    if (!spreadsheet.googleAccessToken || !spreadsheet.googleRefreshToken) {
+      console.log(`  ⚠️  Skipping ${spreadsheet.name} - missing OAuth tokens. Please authorize with Google.`);
+      return 0;
+    }
+
     const leads = await sheetsService.getLeadsToProcessFrom(
       spreadsheet.spreadsheetId,
-      spreadsheet.sheetName
+      spreadsheet.sheetName,
+      spreadsheet.googleAccessToken,
+      spreadsheet.googleRefreshToken
     );
 
     const leadsWithEmails = leads.filter(
@@ -512,7 +562,9 @@ async function checkRepliesForSpreadsheet(spreadsheet: SpreadsheetConfig): Promi
               reply_received: true,
               reply_date: new Date().toISOString(),
               status: 'odpowiedź',
-            }
+            },
+            spreadsheet.googleAccessToken,
+            spreadsheet.googleRefreshToken
           );
 
           repliesFound++;
@@ -524,7 +576,9 @@ async function checkRepliesForSpreadsheet(spreadsheet: SpreadsheetConfig): Promi
           lead.rowIndex,
           {
             last_check: new Date().toISOString(),
-          }
+          },
+          spreadsheet.googleAccessToken,
+          spreadsheet.googleRefreshToken
         );
       } catch (error) {
         console.error(`  ❌ Error checking ${lead.email}:`, error);

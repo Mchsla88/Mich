@@ -142,7 +142,12 @@ export interface SpreadsheetConfig {
   senderName: string; // Sender display name
   replyToEmail?: string; // Reply-to email (optional)
   signature?: string; // Email signature HTML (optional, uses default if not provided)
-  credentialsFileName?: string; // Google credentials JSON filename (stored in credentials/)
+
+  // OAuth 2.0 tokens for Google API access
+  googleAccessToken?: string; // OAuth access token
+  googleRefreshToken?: string; // OAuth refresh token for renewing access
+  googleTokenExpiry?: number; // Token expiry timestamp (milliseconds)
+
   aiProvider: 'anthropic' | 'gemini'; // AI provider to use
   aiApiKey?: string; // AI API key (optional, uses global config if not provided)
   limitPerHour?: number; // Hourly email limit (optional, uses global if not provided)
