@@ -200,7 +200,7 @@ app.get(
       res.clearCookie('oauth_spreadsheet_id');
 
       // Save tokens to spreadsheet config
-      const spreadsheet = await spreadsheetStorage.getSpreadsheet(spreadsheetId);
+      const spreadsheet = await spreadsheetStorage.getSpreadsheetById(spreadsheetId);
       if (!spreadsheet) {
         return res.send(`
           <html>
@@ -261,11 +261,70 @@ app.get(
   }
 );
 
+// TEST ENDPOINT - Simulate complete OAuth flow (for testing without real Google login)
+app.get('/test/oauth-flow/:spreadsheetId', async (req: Request, res: Response) => {
+  try {
+    const spreadsheetId = req.params.spreadsheetId;
+
+    console.log(`🧪 TEST: Simulating OAuth flow for spreadsheet ${spreadsheetId}`);
+
+    // Check if spreadsheet exists
+    const spreadsheet = await spreadsheetStorage.getSpreadsheetById(spreadsheetId);
+    if (!spreadsheet) {
+      return res.json({
+        success: false,
+        error: `Spreadsheet ${spreadsheetId} not found`
+      });
+    }
+
+    // Simulate OAuth tokens (fake but valid format)
+    const fakeTokens = {
+      googleAccessToken: 'fake-access-token-' + Date.now(),
+      googleRefreshToken: 'fake-refresh-token-' + Date.now(),
+      googleTokenExpiry: Date.now() + 3600 * 1000, // 1 hour
+      senderEmail: 'test@example.com'
+    };
+
+    console.log(`🧪 TEST: Saving fake tokens to spreadsheet`);
+    console.log(`  Access Token: ${fakeTokens.googleAccessToken}`);
+    console.log(`  Refresh Token: ${fakeTokens.googleRefreshToken}`);
+
+    // Save tokens
+    await spreadsheetStorage.updateSpreadsheet(spreadsheetId, fakeTokens);
+
+    // Verify tokens were saved
+    const updated = await spreadsheetStorage.getSpreadsheetById(spreadsheetId);
+
+    console.log(`🧪 TEST: Tokens saved successfully`);
+    console.log(`  Verified access token: ${updated?.googleAccessToken}`);
+    console.log(`  Verified refresh token: ${updated?.googleRefreshToken}`);
+
+    res.json({
+      success: true,
+      message: 'OAuth flow simulated successfully',
+      spreadsheet: {
+        id: updated?.id,
+        name: updated?.name,
+        hasAccessToken: !!updated?.googleAccessToken,
+        hasRefreshToken: !!updated?.googleRefreshToken,
+        senderEmail: updated?.senderEmail
+      }
+    });
+
+  } catch (error: any) {
+    console.error('🧪 TEST: Error simulating OAuth flow:', error);
+    res.json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Check OAuth status for a spreadsheet
 app.get('/api/auth/status/:spreadsheetId', async (req: Request, res: Response) => {
   try {
     const { spreadsheetId } = req.params;
-    const spreadsheet = await spreadsheetStorage.getSpreadsheet(spreadsheetId);
+    const spreadsheet = await spreadsheetStorage.getSpreadsheetById(spreadsheetId);
 
     if (!spreadsheet) {
       return res.status(404).json({ success: false, error: 'Spreadsheet not found' });
