@@ -1489,9 +1489,12 @@ app.get('/', (req: Request, res: Response) => {
         <h3 style="margin-bottom: 15px; font-size: 16px;">Nowy arkusz</h3>
 
         <div class="form-group">
-          <label for="newSpreadsheetId">Google Spreadsheet ID *</label>
-          <input type="text" id="newSpreadsheetId" placeholder="13CYoUh8BpVi4dOjeXrU1NFIt9PTVpKKhrdQGpggYzZ4" />
-          <small style="color: #666;">Skopiuj z URL arkusza: ...d/<strong>ID</strong>/edit</small>
+          <label for="newSpreadsheetId">Google Spreadsheet URL lub ID *</label>
+          <input type="text" id="newSpreadsheetId" placeholder="Wklej cały URL: https://docs.google.com/spreadsheets/d/13CYoUh8BpVi.../edit lub samo ID" />
+          <small style="color: #666;">
+            Możesz wkleić <strong>cały URL arkusza</strong> (skopiuj z paska przeglądarki) lub samo ID.
+            Aplikacja automatycznie wyciągnie ID z URLa.
+          </small>
         </div>
 
         <div class="form-group">
@@ -1929,7 +1932,22 @@ app.get('/', (req: Request, res: Response) => {
       successDiv.style.display = 'none';
       errorDiv.style.display = 'none';
 
-      const spreadsheetId = document.getElementById('newSpreadsheetId').value.trim();
+      let spreadsheetInput = document.getElementById('newSpreadsheetId').value.trim();
+
+      // Extract ID from URL if user pasted full URL
+      let spreadsheetId = spreadsheetInput;
+      if (spreadsheetInput.includes('docs.google.com/spreadsheets')) {
+        // Extract ID from URL like: https://docs.google.com/spreadsheets/d/ID/edit
+        const match = spreadsheetInput.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+        if (match && match[1]) {
+          spreadsheetId = match[1];
+          console.log('Extracted spreadsheet ID from URL:', spreadsheetId);
+        } else {
+          errorDiv.textContent = 'Nie można wyciągnąć ID z tego URLa. Sprawdź czy URL jest poprawny.';
+          errorDiv.style.display = 'block';
+          return;
+        }
+      }
       const sheetName = document.getElementById('newSheetName').value.trim();
       const name = document.getElementById('newSpreadsheetName').value.trim();
       const senderEmail = document.getElementById('newSenderEmail').value.trim();
