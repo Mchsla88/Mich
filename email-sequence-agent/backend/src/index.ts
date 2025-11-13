@@ -1425,7 +1425,7 @@ app.get('/', (req: Request, res: Response) => {
 
         // Determine if this is edit or add
         const isEdit = editingSpreadsheetId !== null;
-        const url = isEdit ? `/api/spreadsheets/${editingSpreadsheetId}` : '/api/spreadsheets';
+        const url = isEdit ? '/api/spreadsheets/' + editingSpreadsheetId : '/api/spreadsheets';
         const method = isEdit ? 'PUT' : 'POST';
 
         const response = await fetch(url, {
