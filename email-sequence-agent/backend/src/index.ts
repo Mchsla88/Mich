@@ -1,3 +1,7 @@
+import dotenv from 'dotenv';
+// Load environment variables first
+dotenv.config();
+
 import express, { Request, Response } from 'express';
 import session from 'express-session';
 import passport from 'passport';
@@ -42,7 +46,14 @@ passport.deserializeUser((user: any, done) => {
 });
 
 // Configure Google OAuth Strategy
-if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+console.log('🔐 Configuring Google OAuth...');
+console.log('  GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? '✓ Set' : '✗ Missing');
+console.log('  GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? '✓ Set' : '✗ Missing');
+
+if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+  console.warn('⚠️  Google OAuth credentials not configured. OAuth login will not work.');
+  console.warn('   Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env file');
+} else {
   passport.use(
     new GoogleStrategy(
       {
@@ -61,6 +72,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
       }
     )
   );
+  console.log('✅ Google OAuth strategy configured');
 }
 
 // CORS
