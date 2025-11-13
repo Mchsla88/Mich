@@ -45,6 +45,7 @@ app.use(
     saveUninitialized: true, // IMPORTANT: must be true to create session before OAuth redirect
     cookie: {
       secure: false, // set to true if using HTTPS
+      sameSite: 'lax', // CRITICAL: Required for OAuth redirects to work in modern browsers
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     },
   })
@@ -171,7 +172,17 @@ app.get('/auth/google', (req: Request, res: Response, next) => {
 // OAuth callback - Google redirects here after user authorizes
 app.get(
   '/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: '/' }),
+  (req: Request, res: Response, next) => {
+    console.log('\n🔐 OAuth callback hit - starting Passport authentication');
+    console.log(`  Query params:`, req.query);
+    console.log(`  Cookies received:`, req.cookies);
+    console.log(`  Session ID:`, req.sessionID);
+
+    passport.authenticate('google', {
+      failureRedirect: '/',
+      failureMessage: true
+    })(req, res, next);
+  },
   async (req: Request, res: Response) => {
     try {
       const user = req.user as any;
@@ -179,9 +190,31 @@ app.get(
       // Get spreadsheetId from cookie
       const spreadsheetId = req.cookies.oauth_spreadsheet_id;
 
-      console.log(`🔐 OAuth callback`);
+      console.log(`\n🔐 OAuth callback received`);
+      console.log(`  User authenticated:`, !!user);
+      console.log(`  User email:`, user?.profile?.emails?.[0]?.value);
+      console.log(`  Access token present:`, !!user?.accessToken);
+      console.log(`  Refresh token present:`, !!user?.refreshToken);
       console.log(`  Spreadsheet ID from cookie: ${spreadsheetId}`);
       console.log(`  All cookies:`, req.cookies);
+      console.log(`  Session ID:`, req.sessionID);
+      console.log(`  Session data:`, req.session);
+
+      // Check if user was authenticated by Passport
+      if (!user) {
+        console.log('❌ No user object - Passport authentication failed!');
+        return res.send(`
+          <html>
+            <body>
+              <h1>❌ Błąd autoryzacji</h1>
+              <p>Nie udało się uwierzytelnić z Google.</p>
+              <p>Debug: Passport did not return user object</p>
+              <p>Sprawdź czy credentials Google OAuth są poprawnie skonfigurowane w Google Cloud Console.</p>
+              <a href="/">Wróć do dashboardu</a>
+            </body>
+          </html>
+        `);
+      }
 
       if (!spreadsheetId) {
         console.log('❌ No spreadsheetId found in cookie!');
