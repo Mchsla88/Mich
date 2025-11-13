@@ -261,6 +261,66 @@ app.get(
   }
 );
 
+// TEST ENDPOINT - Mock callback that simulates Google redirect (bypasses Passport)
+app.get('/test/oauth-callback-mock', async (req: Request, res: Response) => {
+  try {
+    const spreadsheetId = req.cookies.oauth_spreadsheet_id;
+
+    console.log(`🧪 MOCK CALLBACK: Simulating Google callback`);
+    console.log(`  Cookie value: ${spreadsheetId}`);
+    console.log(`  All cookies:`, req.cookies);
+
+    if (!spreadsheetId) {
+      return res.json({
+        success: false,
+        error: 'No spreadsheetId cookie found'
+      });
+    }
+
+    // Check if spreadsheet exists
+    const spreadsheet = await spreadsheetStorage.getSpreadsheetById(spreadsheetId);
+    if (!spreadsheet) {
+      return res.json({
+        success: false,
+        error: `Spreadsheet ${spreadsheetId} not found`
+      });
+    }
+
+    // Simulate OAuth tokens
+    const fakeTokens = {
+      googleAccessToken: 'mock-access-token-' + Date.now(),
+      googleRefreshToken: 'mock-refresh-token-' + Date.now(),
+      googleTokenExpiry: Date.now() + 3600 * 1000,
+      senderEmail: 'mock-user@example.com'
+    };
+
+    // Save tokens
+    await spreadsheetStorage.updateSpreadsheet(spreadsheetId, fakeTokens);
+
+    // Clear cookie
+    res.clearCookie('oauth_spreadsheet_id');
+
+    console.log(`🧪 MOCK CALLBACK: Tokens saved, cookie cleared`);
+
+    res.json({
+      success: true,
+      message: 'Mock OAuth callback successful',
+      spreadsheet: {
+        id: spreadsheet.id,
+        name: spreadsheet.name,
+        senderEmail: fakeTokens.senderEmail
+      }
+    });
+
+  } catch (error: any) {
+    console.error('🧪 MOCK CALLBACK: Error:', error);
+    res.json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // TEST ENDPOINT - Simulate complete OAuth flow (for testing without real Google login)
 app.get('/test/oauth-flow/:spreadsheetId', async (req: Request, res: Response) => {
   try {
