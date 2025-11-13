@@ -834,6 +834,251 @@ app.get('/', (req: Request, res: Response) => {
     ` : ''}
 
     <div class="section">
+      <h2>📖 Instrukcja konfiguracji - Krok po kroku</h2>
+      <button onclick="toggleInstructions()" style="margin-bottom: 15px; background: #17a2b8;">
+        📚 Pokaż/Ukryj szczegółową instrukcję
+      </button>
+
+      <div id="instructionsPanel" style="display: none; background: white; padding: 20px; border-radius: 6px; border: 1px solid #ddd;">
+        <h3 style="color: #0066cc; margin-top: 0;">🔐 Krok 1: Tworzenie Google Service Account (30 min)</h3>
+
+        <div style="background: #f8f9fa; padding: 15px; border-left: 4px solid #0066cc; margin-bottom: 20px;">
+          <p><strong>Co to jest Service Account?</strong></p>
+          <p style="margin: 10px 0;">To specjalne konto Google które pozwala aplikacji automatycznie wysyłać emaile i zarządzać arkuszami bez logowania przez przeglądarkę.</p>
+        </div>
+
+        <ol style="line-height: 1.8;">
+          <li><strong>Wejdź na Google Cloud Console:</strong><br>
+            <a href="https://console.cloud.google.com/" target="_blank" style="color: #0066cc;">https://console.cloud.google.com/</a>
+          </li>
+
+          <li><strong>Utwórz nowy projekt:</strong><br>
+            • Kliknij "Select a project" (góra strony)<br>
+            • Kliknij "NEW PROJECT"<br>
+            • Nazwa: np. "Email-Agent"<br>
+            • Kliknij "CREATE"<br>
+            • Poczekaj aż projekt się utworzy (może zająć minutę)
+          </li>
+
+          <li><strong>Włącz Gmail API:</strong><br>
+            • W menu bocznym: "APIs & Services" → "Library"<br>
+            • Wyszukaj: "Gmail API"<br>
+            • Kliknij na Gmail API<br>
+            • Kliknij "ENABLE" (niebieska przycisk)<br>
+            • Poczekaj na włączenie
+          </li>
+
+          <li><strong>Włącz Google Sheets API:</strong><br>
+            • Wróć do Library<br>
+            • Wyszukaj: "Google Sheets API"<br>
+            • Kliknij na Google Sheets API<br>
+            • Kliknij "ENABLE"
+          </li>
+
+          <li><strong>Utwórz Service Account:</strong><br>
+            • W menu bocznym: "APIs & Services" → "Credentials"<br>
+            • Kliknij "CREATE CREDENTIALS" (góra strony)<br>
+            • Wybierz "Service Account"<br>
+            • Wypełnij formularz:<br>
+            &nbsp;&nbsp;- Service account name: "email-agent"<br>
+            &nbsp;&nbsp;- Service account ID: automatycznie<br>
+            &nbsp;&nbsp;- Description: "Email automation agent"<br>
+            • Kliknij "CREATE AND CONTINUE"<br>
+            • Role: wybierz "Owner" (najprostsze)<br>
+            • Kliknij "CONTINUE"<br>
+            • Kliknij "DONE"
+          </li>
+
+          <li><strong>⭐ Pobierz plik JSON (NAJWAŻNIEJSZE!):</strong><br>
+            • Na liście Service Accounts znajdź swoje konto (email-agent@...)<br>
+            • Kliknij na email Service Account<br>
+            • Przejdź do zakładki "KEYS"<br>
+            • Kliknij "ADD KEY" → "Create new key"<br>
+            • Wybierz "JSON"<br>
+            • Kliknij "CREATE"<br>
+            <strong style="color: #dc3545;">→ Plik JSON zostanie pobrany na Twój komputer!</strong><br>
+            <strong>→ Zapisz go w bezpiecznym miejscu!</strong>
+          </li>
+
+          <li><strong>Włącz Domain-Wide Delegation (dla Gmail):</strong><br>
+            • Wróć do listy Service Accounts<br>
+            • Kliknij na swoje konto<br>
+            • Zaznacz checkbox "Enable G Suite Domain-wide Delegation"<br>
+            • Kliknij "SAVE"
+          </li>
+        </ol>
+
+        <div style="background: #d4edda; padding: 15px; border-left: 4px solid #28a745; margin: 20px 0;">
+          <strong>✅ Gotowe!</strong> Masz teraz plik JSON z credentials!
+        </div>
+
+        <hr style="margin: 30px 0;">
+
+        <h3 style="color: #0066cc;">🔑 Krok 2: Konfiguracja API Keys (5 min)</h3>
+
+        <h4>A) Anthropic API Key (dla Claude AI):</h4>
+        <ol style="line-height: 1.8;">
+          <li>Wejdź na: <a href="https://console.anthropic.com/" target="_blank" style="color: #0066cc;">https://console.anthropic.com/</a></li>
+          <li>Zarejestruj się lub zaloguj</li>
+          <li>Kliknij "Get API Keys" lub "API Keys" w menu</li>
+          <li>Kliknij "Create Key"</li>
+          <li>Skopiuj klucz (zaczyna się od: sk-ant-api03-...)</li>
+          <li>Wklej go w pole "Anthropic API Key" poniżej</li>
+          <li>Kliknij "💾 Zapisz API Key"</li>
+        </ol>
+
+        <h4>B) Google Gemini API Key (opcjonalnie):</h4>
+        <ol style="line-height: 1.8;">
+          <li>Wejdź na: <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: #0066cc;">https://aistudio.google.com/app/apikey</a></li>
+          <li>Zaloguj się kontem Google</li>
+          <li>Kliknij "Create API Key"</li>
+          <li>Skopiuj klucz</li>
+          <li>Wklej go przy dodawaniu kampanii (jeśli chcesz używać Gemini)</li>
+        </ol>
+
+        <hr style="margin: 30px 0;">
+
+        <h3 style="color: #0066cc;">📊 Krok 3: Przygotowanie Google Sheets (10 min)</h3>
+
+        <ol style="line-height: 1.8;">
+          <li><strong>Utwórz nowy Google Sheet lub otwórz istniejący</strong></li>
+
+          <li><strong>Nazwa arkusza musi być: "Leads"</strong> (lub inna nazwa którą podasz w ustawieniach)</li>
+
+          <li><strong>Skopiuj ID arkusza z URL:</strong><br>
+            URL wygląda tak:<br>
+            <code>https://docs.google.com/spreadsheets/d/<strong style="color: #dc3545;">TUTAJ_JEST_ID</strong>/edit</code><br>
+            Przykład ID: <code>13CYoUh8BpVi4dOjeXrU1NFIt9PTVpKKhrdQGpggYzZ4</code>
+          </li>
+
+          <li><strong>Dodaj kolumny (dokładnie w tej kolejności!):</strong><br>
+            A - email<br>
+            B - firma<br>
+            C - website_url<br>
+            D - imie<br>
+            E - generuj (TRUE/FALSE)<br>
+            F - status<br>
+            G - research_notes<br>
+            ... (pozostałe 19 kolumn według dokumentacji)
+          </li>
+
+          <li><strong>⭐ NAJWAŻNIEJSZE - Nadaj dostęp dla Service Account:</strong><br>
+            • Otwórz pobrany plik JSON w notatniku<br>
+            • Znajdź linię: <code>"client_email": "email-agent@..."</code><br>
+            • Skopiuj ten email (np. email-agent@projekt-123.iam.gserviceaccount.com)<br>
+            • W Google Sheets kliknij przycisk "Udostępnij" (prawy górny róg)<br>
+            • Wklej email Service Account<br>
+            • Ustaw uprawnienia: <strong>"Edytor"</strong><br>
+            • ODZNACZ "Powiadom osoby"<br>
+            • Kliknij "Udostępnij"<br>
+            <strong style="color: #dc3545;">→ Bez tego krok aplikacja NIE będzie mogła czytać/zapisywać!</strong>
+          </li>
+        </ol>
+
+        <hr style="margin: 30px 0;">
+
+        <h3 style="color: #0066cc;">🚀 Krok 4: Dodanie kampanii w aplikacji (5 min)</h3>
+
+        <ol style="line-height: 1.8;">
+          <li>Przewiń w dół do sekcji "📚 Zarządzanie Arkuszami"</li>
+          <li>Kliknij "➕ Dodaj nowy arkusz"</li>
+          <li>Wypełnij formularz:
+            <ul>
+              <li><strong>Google Spreadsheet ID:</strong> wklej ID z URL arkusza</li>
+              <li><strong>Nazwa zakładki:</strong> "Leads" (lub inna nazwa)</li>
+              <li><strong>Nazwa kampanii:</strong> np. "Kampania Web Design"</li>
+              <li><strong>Email nadawcy:</strong> twój email z którego będą wysyłane wiadomości</li>
+              <li><strong>Nazwa nadawcy:</strong> Twoje imię i nazwisko</li>
+              <li><strong>Stopka email:</strong> kod HTML lub upload pliku .html</li>
+              <li><strong>Limity:</strong> opcjonalnie (domyślnie 10/godz, 50/dzień)</li>
+              <li><strong>Dostawca AI:</strong> Anthropic lub Gemini</li>
+              <li><strong>Google Credentials JSON:</strong> wybierz pobrany plik JSON</li>
+            </ul>
+          </li>
+          <li>Kliknij "💾 Dodaj arkusz"</li>
+        </ol>
+
+        <div style="background: #d4edda; padding: 15px; border-left: 4px solid #28a745; margin: 20px 0;">
+          <strong>🎉 Gotowe!</strong> System jest skonfigurowany i gotowy do pracy!
+        </div>
+
+        <hr style="margin: 30px 0;">
+
+        <h3 style="color: #0066cc;">📝 Dodawanie leadów do arkusza</h3>
+
+        <p>W Google Sheets dodaj leadów z wypełnionymi kolumnami:</p>
+        <ul>
+          <li><strong>email:</strong> adres email klienta</li>
+          <li><strong>firma:</strong> nazwa firmy</li>
+          <li><strong>website_url:</strong> https://strona-klienta.pl</li>
+          <li><strong>imie:</strong> imię osoby kontaktowej</li>
+          <li><strong>generuj:</strong> TRUE (żeby system przetworzył)</li>
+          <li><strong>status:</strong> nowy</li>
+        </ul>
+
+        <p><strong>System automatycznie:</strong></p>
+        <ol>
+          <li>Wykona research strony WWW (analiza SEO, UX, performance)</li>
+          <li>Wygeneruje 3-stopniową sekwencję emaili</li>
+          <li>Wyśle emaile w odpowiednich odstępach czasu (0, +3, +7 dni)</li>
+          <li>Będzie monitorował odpowiedzi</li>
+        </ol>
+
+        <div style="background: #fff3cd; padding: 15px; border-left: 4px solid #ffc107; margin: 20px 0;">
+          <strong>⚠️ Ważne!</strong><br>
+          • DRY RUN mode: wszystkie emaile idą na test email (bezpieczne testowanie)<br>
+          • PRODUCTION mode: emaile idą do rzeczywistych klientów<br>
+          • Zmień tryb w pliku .env: DRY_RUN=true lub false
+        </div>
+
+        <hr style="margin: 30px 0;">
+
+        <h3 style="color: #dc3545;">🆘 Najczęstsze problemy</h3>
+
+        <details style="margin: 10px 0;">
+          <summary style="cursor: pointer; font-weight: bold;">❌ "Failed to initialize Google Auth"</summary>
+          <div style="padding: 10px; background: #f8f9fa;">
+            <strong>Przyczyna:</strong> Brak pliku credentials JSON lub zły plik<br>
+            <strong>Rozwiązanie:</strong>
+            <ul>
+              <li>Upewnij się że uploadowałeś poprawny plik JSON</li>
+              <li>Sprawdź czy w pliku jest "type": "service_account"</li>
+              <li>Pobierz nowy plik z Google Cloud Console</li>
+            </ul>
+          </div>
+        </details>
+
+        <details style="margin: 10px 0;">
+          <summary style="cursor: pointer; font-weight: bold;">❌ "The caller does not have permission"</summary>
+          <div style="padding: 10px; background: #f8f9fa;">
+            <strong>Przyczyna:</strong> Service Account nie ma dostępu do arkusza<br>
+            <strong>Rozwiązanie:</strong>
+            <ul>
+              <li>Otwórz Google Sheet</li>
+              <li>Kliknij "Udostępnij"</li>
+              <li>Dodaj email Service Account (z pliku JSON: client_email)</li>
+              <li>Ustaw uprawnienia: "Edytor"</li>
+            </ul>
+          </div>
+        </details>
+
+        <details style="margin: 10px 0;">
+          <summary style="cursor: pointer; font-weight: bold;">❌ System nie wysyła emaili</summary>
+          <div style="padding: 10px; background: #f8f9fa;">
+            <strong>Możliwe przyczyny:</strong>
+            <ul>
+              <li>Scheduler nie jest uruchomiony - kliknij "▶️ Start" w sekcji Scheduler</li>
+              <li>Poza godzinami wysyłki (9:00-18:00)</li>
+              <li>Osiągnięto limity (10/godz, 50/dzień)</li>
+              <li>Status leadów nie jest odpowiedni</li>
+              <li>Brak wygenerowanych sekwencji</li>
+            </ul>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <div class="section">
       <h2>🔑 API Configuration</h2>
       <p style="margin-bottom: 15px;">
         Anthropic API Key:
@@ -1130,6 +1375,16 @@ app.get('/', (req: Request, res: Response) => {
       } catch (error) {
         errorDiv.textContent = 'Błąd połączenia: ' + error.message;
         errorDiv.style.display = 'block';
+      }
+    }
+
+    // Toggle instructions panel
+    function toggleInstructions() {
+      const panel = document.getElementById('instructionsPanel');
+      if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+      } else {
+        panel.style.display = 'none';
       }
     }
 
